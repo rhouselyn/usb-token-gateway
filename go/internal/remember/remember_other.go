@@ -4,8 +4,8 @@
 // (Keychain / libsecret) is wired up.
 package remember
 
-func Fingerprint(string) string           { return "" }
-func Exists(string) bool                  { return false }
-func Clear(string)                        {}
-func Save(string, string, string) error   { return nil }
-func Load(string, string) (string, bool)  { return "", false }
+func Fingerprint(string) string          { return "" }
+func Exists(string) bool                 { return false }
+func Clear(string)                       {}
+func Save(string, string, string) error  { return nil }
+func Load(string, string) (string, bool) { return "", false }

@@ -431,6 +431,78 @@ def main():
         check("messages SSE anthropic relay",
               code == 200 and "message_stop" in text and "echo-claude" in assembled2, text[:200])
 
+        # ------------------------------------------------ /v1/responses (Codex CLI)
+        code, r = http("POST", f"{base}/v1/responses", {"model": "gpt-mock", "input": "responses check"}, auth)
+        texts = "".join(p.get("text", "") for it in (r.get("output") or [])
+                        for p in (it.get("content") or []) if isinstance(p, dict))
+        check("responses non-stream openai upstream",
+              code == 200 and r.get("object") == "response" and "echo-openai[gpt-mock]" in texts, (code, r))
+        check("responses usage remapped", (r.get("usage") or {}).get("total_tokens", 0) > 0, r.get("usage"))
+
+        code, r = http("POST", f"{base}/v1/responses", {"model": "claude-mock", "input": "cl resp"}, auth)
+        texts = "".join(p.get("text", "") for it in (r.get("output") or [])
+                        for p in (it.get("content") or []) if isinstance(p, dict))
+        check("responses non-stream anthropic upstream", code == 200 and "echo-claude" in texts, (code, r))
+
+        body = json.dumps({"model": "gpt-mock", "stream": True, "input": "stream resp"}).encode()
+        code, raw = http("POST", f"{base}/v1/responses", body,
+                         {**auth, "Content-Type": "application/json"}, raw=True)
+        text = raw.decode()
+        deltas = ""
+        for ln in text.splitlines():
+            if not ln.startswith("data: "):
+                continue
+            try:
+                obj = json.loads(ln[6:])
+            except Exception:
+                continue
+            if obj.get("type") == "response.output_text.delta":
+                deltas += obj.get("delta", "")
+        check("responses SSE deltas assembled",
+              code == 200 and "echo-openai[gpt-mock]" in deltas, (code, text[:200]))
+        check("responses SSE lifecycle events",
+              all(k in text for k in ["response.created", "response.output_item.added",
+                                      "response.output_item.done", "response.completed"]), text[:150])
+        check("responses SSE carries no chat chunks", "chat.completion.chunk" not in text, text[:80])
+
+        code, r = http("POST", f"{base}/v1/responses", {
+            "model": "gpt-mock",
+            "tools": [{"type": "function", "name": "shell", "description": "d",
+                       "parameters": {"type": "object"}}],
+            "input": [
+                {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "run"}]},
+                {"type": "function_call", "call_id": "c1", "name": "shell", "arguments": "{\"x\":1}"},
+                {"type": "function_call_output", "call_id": "c1", "output": "ok"},
+            ],
+        }, auth)
+        check("responses tools + call items accepted", code == 200 and r.get("object") == "response", (code, r))
+
+        # ------------------------------------------- codex key checkbox -> config sync
+        code, r = http("POST", f"{base}/admin/cmd", {"action": "codex_dkey", "arg": dk}, adm)
+        check("codex_dkey select", r.get("ok"), r)
+        code, r = http("POST", f"{base}/admin/cmd", {"action": "add_dkey", "name": "second", "ttl": 0}, adm)
+        dk2 = r.get("new_key")
+        http("POST", f"{base}/admin/cmd", {"action": "codex_dkey", "arg": dk2}, adm)
+        code, r = http("GET", f"{base}/admin/dkeys", headers=adm)
+        sel = [k for k in r.get("keys", []) if k.get("codex_use")]
+        check("codex_use exclusive", len(sel) == 1 and sel[0]["key"] == dk2, r)
+        http("POST", f"{base}/admin/cmd", {"action": "codex_dkey", "arg": dk}, adm)  # back to primary
+        cfg_dir = os.path.join(data_dir, "codex")
+        auth_json = os.path.join(cfg_dir, "auth.json")
+        cfg_toml = os.path.join(cfg_dir, "config.toml")
+        okj = json.load(open(auth_json, encoding="utf-8")) if os.path.exists(auth_json) else {}
+        toml = open(cfg_toml, encoding="utf-8").read() if os.path.exists(cfg_toml) else ""
+        check("codex auth.json written with selected key", okj.get("OPENAI_API_KEY") == dk, okj)
+        check("codex config.toml written",
+              f"127.0.0.1:{PORT_GATEWAY}" in toml and 'wire_api = "responses"' in toml, toml)
+        code, r = http("POST", f"{base}/admin/cmd", {"action": "set_codex_model", "arg": "gpt-5.7-test"}, adm)
+        toml = open(cfg_toml, encoding="utf-8").read()
+        check("codex model sync", r.get("ok") and 'model = "gpt-5.7-test"' in toml, toml)
+        code, r = http("POST", f"{base}/admin/cmd", {"action": "codex_dkey", "arg": dk, "off": True}, adm)
+        check("codex_dkey off ok", r.get("ok"), r)
+        check("codex auth.json removed when unbound", not os.path.exists(auth_json), auth_json)
+        http("POST", f"{base}/admin/cmd", {"action": "del_dkey", "arg": dk2}, adm)
+
         # admin models endpoint (quick-connect card data)
         code, r = http("GET", f"{base}/admin/models", None, adm)
         mset = [m["model"] for m in r.get("models", [])]

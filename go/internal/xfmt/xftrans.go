@@ -96,7 +96,7 @@ func buildOpenAI(ch *vault.Channel, body map[string]any) *Req {
 	}
 	return &Req{
 		Method: "POST", URL: url,
-		Body:    jsonMarshal(b),
+		Body: jsonMarshal(b),
 		Headers: authHeaders(ch, map[string]string{
 			"Content-Type": "application/json", "Accept": "application/json",
 		}),
@@ -149,10 +149,10 @@ func buildAnthropic(ch *vault.Channel, body map[string]any) *Req {
 		maxTok = 1024
 	}
 	payload := map[string]any{
-		"model":    model,
+		"model":      model,
 		"max_tokens": maxTok,
-		"messages": convo,
-		"stream":   truthy(body["stream"]),
+		"messages":   convo,
+		"stream":     truthy(body["stream"]),
 	}
 	if len(systemParts) > 0 {
 		payload["system"] = strings.Join(systemParts, "\n")
@@ -170,7 +170,7 @@ func buildAnthropic(ch *vault.Channel, body map[string]any) *Req {
 	return &Req{Method: "POST", URL: url, Body: jsonMarshal(payload), Headers: authHeaders(ch, headers)}
 }
 
-func str(v any) string { s, _ := v.(string); return s }
+func str(v any) string  { s, _ := v.(string); return s }
 func truthy(v any) bool { b, _ := v.(bool); return b }
 func float64p(v any) float64 {
 	switch x := v.(type) {
@@ -229,13 +229,13 @@ func anthropicToOpenAI(body map[string]any, aj map[string]any) map[string]any {
 			"message":       map[string]any{"role": "assistant", "content": text.String()},
 			"finish_reason": stop,
 		}},
-		"usage": map[string]any{"prompt_tokens": in, "completion_tokens": out, "total_tokens": in + out},
+		"usage":  map[string]any{"prompt_tokens": in, "completion_tokens": out, "total_tokens": in + out},
 		"bridge": map[string]any{"upstream": "anthropic"},
 	}
 }
 
 func str_1(v any) string { s, _ := v.(string); return s }
-func intF(v any) int { f, _ := v.(float64); return int(f) }
+func intF(v any) int     { f, _ := v.(float64); return int(f) }
 
 /* --------------------------------------------------------------- SSE utils */
 

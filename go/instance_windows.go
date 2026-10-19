@@ -193,7 +193,7 @@ func listenerPidForPort(port int) int {
 	return 0
 }
 
-//进程快照辅助：pid -> 镜像名
+// 进程快照辅助：pid -> 镜像名
 func imageNameForPID(target int) string {
 	if target <= 0 {
 		return ""
@@ -250,4 +250,3 @@ func bridgeSquattingPID(port int) int {
 	fmt.Printf("[bridge] port %d held by our family process pid %d (%s), healthz marker matched\n", port, pid, name)
 	return pid
 }
-

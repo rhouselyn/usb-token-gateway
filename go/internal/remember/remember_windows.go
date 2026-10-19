@@ -3,8 +3,8 @@
 // Package remember: per-device "stay signed in" (DESIGN threat-model note).
 // The master password is encrypted with DPAPI (scope = current Windows user on
 // this machine) and stored in <data_dir>/session.key.  Facts:
-//   * taking the USB elsewhere / another login cannot decrypt the blob
-//   * config.vault itself stays password-encrypted at rest (DESIGN §5)
+//   - taking the USB elsewhere / another login cannot decrypt the blob
+//   - config.vault itself stays password-encrypted at rest (DESIGN §5)
 package remember
 
 import (
@@ -18,7 +18,7 @@ import (
 )
 
 var (
-	crypt32 = syscall.NewLazyDLL("crypt32.dll")
+	crypt32  = syscall.NewLazyDLL("crypt32.dll")
 	kernel32 = syscall.NewLazyDLL("kernel32.dll")
 
 	procCryptProtectData   = crypt32.NewProc("CryptProtectData")

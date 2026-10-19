@@ -24,12 +24,12 @@ type Record struct {
 }
 
 type Audit struct {
-	mu       sync.Mutex
-	dir      string
-	day      string   // "20060102"
-	f        *os.File // today's file
-	ring     []Record // last 200, newest first
-	ringMu   sync.Mutex
+	mu     sync.Mutex
+	dir    string
+	day    string   // "20060102"
+	f      *os.File // today's file
+	ring   []Record // last 200, newest first
+	ringMu sync.Mutex
 }
 
 func New(dataDir string) *Audit {

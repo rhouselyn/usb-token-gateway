@@ -23,6 +23,7 @@
 - **Key 一堆，轮换全靠手** —— OpenAI、Claude、各家中转站攒了一堆 API key：这个 429 了、那个额度见底了，就得挨个项目改配置、挨个重启。
 - **换台电脑就抓瞎** —— 临时在别人的电脑 / 公司机器 / 出差笔记本上干活，懒得把一堆 key 拷过去；明文 `.env` 拷来拷去，用完还删不干净。
 - **配置比干活还累** —— 每台电脑、每个客户端都要重新填一遍 `base_url` 和 key。
+- **想在远程服务器 / 新电脑上直接用 Codex？** —— 装 Node、配 key、写 `auth.json`，折腾半天才能开聊。现在插上 U 盘双击「启动 Codex.bat」就直接开干，随时用。
 
 **一个 U 盘就够了** —— 它是即插即用的 Token 中转站：
 
@@ -35,6 +36,8 @@
 
 - **Drop-in OpenAI endpoint** — `/v1/chat/completions`、`/v1/models`、`/v1/embeddings`；任何 OpenAI SDK / 客户端只要改 `base_url`
 - **Native Anthropic endpoint** — `/v1/messages`（含流式 `message_start → content_block_delta → message_stop`），Claude 官方 SDK 直连
+- **OpenAI Responses endpoint** — `/v1/responses`（含 SSE 事件流），**Codex CLI 原生直连**
+- **内置 Codex 一键启动** — `usb-bridge.exe --codex`（或托盘「启动 Codex」/「启动 Codex.bat」）：未登录先弹登录页、解锁瞬间自动拉起 Codex；面板勾选「Codex」Key（单选）与模型名后实时写进 U 盘 `bridge\codex\{auth.json,config.toml}`，`CODEX_HOME` 指向 U 盘、对话历史不留主机
 - **Multi-channel routing** — `failover` / `round_robin` / `weighted` / `least_errors`，5 分钟健康窗 + 熔断 + 429 冷却 + 重试预算
 - **Protocol translation** — OpenAI ⇄ Anthropic 双向转换（请求体、响应体、SSE 事件流）
 - **Encrypted keys at rest** — Argon2id + AES-GCM，`config.vault` 全程密文，原子落盘
@@ -46,7 +49,7 @@
 
 任何允许自定义 `base_url` 的客户端都能直接接入（示例）：
 
-Claude Code（`ANTHROPIC_BASE_URL`）· Cursor · Cline · Continue · ChatBox · NextChat ·
+Claude Code（`ANTHROPIC_BASE_URL`）· OpenAI Codex CLI（内置一键启动）· Cursor · Cline · Continue · ChatBox · NextChat ·
 LobeChat · Cherry Studio · Open WebUI · OpenAI 官方 SDK · Anthropic 官方 SDK ·
 LangChain / LlamaIndex · 以及任何 OpenAI 兼容的 Agent / App。
 
@@ -118,6 +121,7 @@ Linux/macOS 网关本体也能跑（托盘/进程接管等 Windows 专属能力�
 |---|---|---|
 | `POST /v1/chat/completions` | OpenAI | 绝大多数客户端 / SDK |
 | `POST /v1/messages` | Anthropic 原生 | Claude 官方 SDK、Claude 语法 App |
+| `POST /v1/responses` | OpenAI Responses | Codex CLI（内置一键启动） |
 | `GET /v1/models` | OpenAI | 模型列表 |
 | `POST /v1/embeddings` | OpenAI | 向量 |
 | `ANY /proxy/<channel_id>/…` | 原样反代 | 直通某个指定渠道 |

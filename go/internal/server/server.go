@@ -52,7 +52,8 @@ func Run(b *bridge.Bridge, opts Options) (*http.Server, int) {
 	})
 	mux.HandleFunc("/v1/models", hb.models)
 	mux.HandleFunc("/v1/chat/completions", hb.chat)
-	mux.HandleFunc("/v1/messages", hb.messages) // anthropic-native inbound
+	mux.HandleFunc("/v1/messages", hb.messages)   // anthropic-native inbound
+	mux.HandleFunc("/v1/responses", hb.responses) // OpenAI Responses API (Codex CLI)
 	mux.HandleFunc("/v1/embeddings", hb.embeddings)
 	mux.HandleFunc("/proxy/", hb.proxy)
 	mux.HandleFunc("/admin", hb.adminPage)
@@ -442,8 +443,11 @@ func (hb *httpBridge) chatCore(w http.ResponseWriter, r *http.Request, body map[
 		sch.Report(ch.ID, true, firstMS, resp.StatusCode, 0)
 		u, _ := out["usage"].(map[string]any)
 		pu, cu := intF(u["prompt_tokens"]), intF(u["completion_tokens"])
-		if outFmt == "anthropic" {
+		switch outFmt {
+		case "anthropic":
 			out = openAIOutToAnthropic(out, strV(body["model"]))
+		case "responses":
+			out = xfmt.ChatToResponses(out)
 		}
 		hb.record(model, ch.ID, 200, firstMS, pu, cu, "")
 		payload, _ := json.Marshal(out)
@@ -499,6 +503,10 @@ func (hb *httpBridge) sse(w http.ResponseWriter, ch *vault.Channel, body map[str
 	proto := ch.Protocol
 	anthClient := outFmt == "anthropic"
 	antOut := &anthropicSSEState{Model: upModel} // used only when anthClient && proto != "anthropic"
+	var rs *xfmt.RespSSE                         // used only when outFmt == "responses"
+	if outFmt == "responses" {
+		rs = xfmt.NewRespSSE(upModel)
+	}
 
 	// idle watchdog: cancel the upstream if nothing arrives in idleS.
 	idle := time.Duration(idleS * float64(time.Second))
@@ -520,6 +528,8 @@ func (hb *httpBridge) sse(w http.ResponseWriter, ch *vault.Channel, body map[str
 			if len(line) > 0 {
 				var chunks [][]byte
 				switch {
+				case outFmt == "responses": // openai or anthropic upstream -> Responses events
+					chunks = xfmt.RespFromChatLine(line, proto, rs, state)
 				case proto == "anthropic" && !anthClient:
 					chunks = xfmt.AnthropicEventToChunks(line, state)
 				case proto != "anthropic" && anthClient:
@@ -543,6 +553,16 @@ func (hb *httpBridge) sse(w http.ResponseWriter, ch *vault.Channel, body map[str
 		if err != nil {
 			break
 		}
+	}
+	if outFmt == "responses" {
+		if rs != nil && !rs.Done { // upstream died mid-stream without [DONE]
+			for _, f := range rs.Finalize() {
+				if writePayload(f) != nil {
+					return
+				}
+			}
+		}
+		return
 	}
 	if !sawDONE && !anthClient { // upstream died mid-stream without [DONE]
 		writePayload([]byte("data: [DONE]\n\n"))

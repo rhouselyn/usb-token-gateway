@@ -2,9 +2,11 @@
 package server
 
 import (
+	"fmt"
 	"net/http"
 	"strings"
 
+	"usbridge/internal/codexgen"
 	"usbridge/internal/probe"
 	"usbridge/internal/remember"
 	"usbridge/internal/vault"
@@ -48,7 +50,10 @@ func (hb *httpBridge) adminAPI(w http.ResponseWriter, r *http.Request) {
 		case "channels":
 			okJSON(w, map[string]any{"channels": sanitizeChannels(hb.B.Vault().Data.Channels)})
 		case "dkeys":
-			okJSON(w, map[string]any{"keys": sanitizeKeys(hb.B.Vault().Data.DownstreamKeys)})
+			okJSON(w, map[string]any{
+				"keys":        sanitizeKeys(hb.B.Vault().Data.DownstreamKeys),
+				"codex_model": hb.B.Vault().Data.CodexModel,
+			})
 		case "recent":
 			okJSON(w, map[string]any{"recent": recentList(hb)})
 		case "models":
@@ -137,6 +142,18 @@ func sanitizeChannels(chs []*vault.Channel) []map[string]any {
 	return out
 }
 
+// syncCodex rewrites the bundled Codex CLI home (best effort).  Uses the
+// actually-bound port, matching what /v1/* is serving right now.
+func (hb *httpBridge) syncCodex() {
+	v := hb.B.Vault()
+	if v == nil {
+		return
+	}
+	if err := codexgen.Sync(hb.B.DataDir(), hb.B.Port(), v.Data.DownstreamKeys, v.Data.CodexModel); err != nil {
+		fmt.Println("[bridge] codex sync:", err)
+	}
+}
+
 func sanitizeKeys(keys []*vault.DownstreamKey) []map[string]any {
 	out := make([]map[string]any, 0, len(keys))
 	for _, k := range keys {
@@ -144,6 +161,7 @@ func sanitizeKeys(keys []*vault.DownstreamKey) []map[string]any {
 			"name": k.Name, "key": k.Key,
 			"key_masked": mask(k.Key), "enabled": k.Enabled,
 			"ttl_hours": k.TTLHours, "created": k.Created,
+			"codex_use": k.CodexUse,
 		})
 	}
 	return out
@@ -171,6 +189,7 @@ func (hb *httpBridge) adminCmd(w http.ResponseWriter, r *http.Request) {
 			fail(err.Error())
 			return
 		}
+		hb.syncCodex() // panel change -> bundled Codex CLI home stays in sync
 		obj := map[string]any{"ok": true}
 		for k, v2 := range extra {
 			obj[k] = v2
@@ -227,6 +246,27 @@ func (hb *httpBridge) adminCmd(w http.ResponseWriter, r *http.Request) {
 				k.Enabled = !k.Enabled
 			}
 		}
+		done(nil)
+	case "codex_dkey":
+		// exclusive selection: which downstream key Codex CLI uses
+		off := boolV(body["off"])
+		for _, k := range v.Data.DownstreamKeys {
+			if off {
+				if k.Key == arg {
+					k.CodexUse = false
+				}
+			} else {
+				k.CodexUse = k.Key == arg
+			}
+		}
+		done(nil)
+	case "set_codex_model":
+		m := strings.TrimSpace(arg)
+		if strings.ContainsAny(m, " \t\r\n\"'#") {
+			fail("invalid model name")
+			return
+		}
+		v.Data.CodexModel = m
 		done(nil)
 	case "del_dkey":
 		keep := make([]*vault.DownstreamKey, 0, len(v.Data.DownstreamKeys))

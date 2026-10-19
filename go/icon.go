@@ -68,10 +68,10 @@ var (
 		{u(24), u(24), u(24), u(40)}, // left pillar
 		{u(40), u(24), u(40), u(40)}, // right pillar
 	}
-	glyphStrokeHalf = u(5) / 2   // stroke-width 5
-	bgRadius        = u(16)      // rect rx=16
-	gradOrigin      = u(24)      // gradient box = glyph bbox (24,24)-(40,40)
-	gradSpan        = u(16) * 2  // diagonal length of that bbox
+	glyphStrokeHalf = u(5) / 2  // stroke-width 5
+	bgRadius        = u(16)     // rect rx=16
+	gradOrigin      = u(24)     // gradient box = glyph bbox (24,24)-(40,40)
+	gradSpan        = u(16) * 2 // diagonal length of that bbox
 )
 
 // ---------------------------------------------------------------- encoding

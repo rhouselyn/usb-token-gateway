@@ -42,7 +42,7 @@ type Channel struct {
 	Models         []string `json:"models"`
 	Weight         int      `json:"weight,omitempty"`
 	Priority       int      `json:"priority,omitempty"`
-	Enabled        bool     `json:"enabled"` // python seed import may omit -> default true (see UnmarshalJSON)
+	Enabled        bool     `json:"enabled"`               // python seed import may omit -> default true (see UnmarshalJSON)
 	AuthHeader     string   `json:"auth_header,omitempty"` // bearer | x-api-key
 	MaxConcurrency int      `json:"max_concurrency,omitempty"`
 }
@@ -73,6 +73,7 @@ type DownstreamKey struct {
 	RateLimitRPM int     `json:"rate_limit_rpm,omitempty"`
 	TTLHours     float64 `json:"ttl_hours,omitempty"` // 0 = never
 	Created      float64 `json:"created"`
+	CodexUse     bool    `json:"codex_use,omitempty"` // exclusive: the key Codex CLI uses
 }
 
 // UnmarshalJSON defaults Enabled=true when the key is absent (seed import).
@@ -114,6 +115,7 @@ type Payload struct {
 	Channels       []*Channel       `json:"channels"`
 	DownstreamKeys []*DownstreamKey `json:"downstream_keys"`
 	AdminToken     string           `json:"admin_token"`
+	CodexModel     string           `json:"codex_model,omitempty"` // model name written to Codex config.toml
 }
 
 func DefaultPolicy() Policy {

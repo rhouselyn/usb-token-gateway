@@ -1,16 +1,17 @@
 // USB Bridge (Go) -- tray, windowsgui, start-probe (DESIGN §3).
 //
 // Rev-A behavior:
-//   * double-click launch, NO console, NO browser spam during daily use
-//   * tray icon menu: panel / re-probe / lock / quit
-//   * no vault yet          -> open panel (first-run wizard)
-//   * locked (vault exists) -> open panel for unlock
-//   * after unlock -> PROBE all enabled channels:
-//        any OK      -> silent run (tooltip shows alive count)
-//        all FAILED  -> tooltip warns + open the GUI (panel) for fixing
+//   - double-click launch, NO console, NO browser spam during daily use
+//   - tray icon menu: panel / re-probe / lock / quit
+//   - no vault yet          -> open panel (first-run wizard)
+//   - locked (vault exists) -> open panel for unlock
+//   - after unlock -> PROBE all enabled channels:
+//     any OK      -> silent run (tooltip shows alive count)
+//     all FAILED  -> tooltip warns + open the GUI (panel) for fixing
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -35,6 +36,7 @@ var (
 	portFlag    = flag.Int("port", 0, "listen port override (default from vault, 8989)")
 	hostFlag    = flag.String("host", "", "bind address override (default: 127.0.0.1, or 0.0.0.0 when bind_lan set)")
 	hiddenFlag  = flag.Bool("hidden", false, "no tray icon at all (B-tier, fully invisible)")
+	codexFlag   = flag.Bool("codex", false, "after the gateway unlocks (opening the panel if needed), launch the bundled Codex CLI")
 	endpoint    = ""    // http://127.0.0.1:<port>, filled after server up
 	silentBoot  = false // true when the remembered-device silent unlock succeeded
 )
@@ -129,6 +131,9 @@ func main() {
 				silentBoot = true
 				fmt.Println("[bridge] silent unlock via remembered device")
 				go probeAll(b) // bubble only (no browser) on this path
+				if *codexFlag {
+					go spawnCodex(b)
+				}
 			} else {
 				remember.Clear(*dataDirFlag) // stale blob (password changed?) -> treat as new host
 				fmt.Println("[bridge] remembered blob rejected, falling back to panel unlock")
@@ -153,6 +158,7 @@ func onReady(b *bridge.Bridge) func() {
 
 		open := systray.AddMenuItem("打开控制面板", "在浏览器中打开控制面板")
 		reprobe := systray.AddMenuItem("重新测活渠道", "再次测试所有上游渠道")
+		codexItem := systray.AddMenuItem("启动 Codex", "检测解锁后启动 U 盘内置的 Codex CLI（未登录会先打开登录页）")
 		lockItem := systray.AddMenuItem("锁定（暂停服务）", "锁定后所有下游调用 503，直到重新解锁")
 		systray.AddSeparator()
 		quit := systray.AddMenuItem("退出", "保存用量并退出")
@@ -164,6 +170,8 @@ func onReady(b *bridge.Bridge) func() {
 					openBrowser(endpoint + "/admin")
 				case <-reprobe.ClickedCh:
 					go probeAll(b)
+				case <-codexItem.ClickedCh:
+					go launchCodex(b)
 				case <-lockItem.ClickedCh:
 					b.Lock()
 					systray.SetIcon(iconLockedPNG)
@@ -196,6 +204,52 @@ func waitForUnlockThenProbe(b *bridge.Bridge) {
 		}
 	}
 	probeAll(b)
+	if *codexFlag { // 「打开网页登录 → 解锁瞬间自动打开 Codex」
+		spawnCodex(b)
+	}
+}
+
+// launchCodex runs from the tray menu: unlock first if needed, then spawn.
+func launchCodex(b *bridge.Bridge) {
+	if b.Locked() {
+		openBrowserOnce(endpoint + "/admin")
+		for b.Locked() {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	spawnCodex(b)
+}
+
+// spawnCodex starts the bundled Codex CLI (bin/codex.exe next to us) with
+// CODEX_HOME on the USB stick -- chat history and config never touch the host.
+// A console subprocess of a windowsgui app gets its own terminal window.
+func spawnCodex(b *bridge.Bridge) {
+	exe, err := os.Executable()
+	if err != nil {
+		return
+	}
+	codexExe := filepath.Join(filepath.Dir(exe), "bin", "codex.exe")
+	if _, err := os.Stat(codexExe); err != nil {
+		balloonNotify("Codex 未找到", "U 盘缺少 bin\\codex.exe：用 publish.ps1 重新打包，或从 openai/codex Releases 下载放入")
+		return
+	}
+	home := filepath.Join(*dataDirFlag, "codex")
+	env := append(os.Environ(), "CODEX_HOME="+home)
+	// belt and braces: some codex builds resolve env_key strictly from the
+	// environment, so export the key alongside auth.json
+	if raw, err := os.ReadFile(filepath.Join(home, "auth.json")); err == nil {
+		var m map[string]string
+		if json.Unmarshal(raw, &m) == nil && m["OPENAI_API_KEY"] != "" {
+			env = append(env, "OPENAI_API_KEY="+m["OPENAI_API_KEY"])
+		}
+	}
+	cmd := exec.Command(codexExe)
+	cmd.Env = env
+	if err := cmd.Start(); err != nil {
+		balloonNotify("Codex 启动失败", err.Error())
+		return
+	}
+	balloonNotify("Codex 已启动", "Codex CLI 窗口已打开；网关与历史都保存在 U 盘")
 }
 
 // probeAll: start-probe per rev-A spec.

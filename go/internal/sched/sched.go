@@ -1,4 +1,4 @@
-﻿// Package sched: channel scheduling (DESIGN 搂7) -- strategies, health window,
+// Package sched: channel scheduling (DESIGN 搂7) -- strategies, health window,
 // circuit breaker, 429-aware cooldown.
 package sched
 
@@ -20,13 +20,13 @@ type sample struct {
 }
 
 type Health struct {
-	mu           sync.Mutex
-	window       []sample
-	minSamples   int
-	errRate      float64
+	mu            sync.Mutex
+	window        []sample
+	minSamples    int
+	errRate       float64
 	cooldownUntil time.Time
-	halfOpen     bool
-	retryAfter   time.Time // 429 earliest-retry hint
+	halfOpen      bool
+	retryAfter    time.Time // 429 earliest-retry hint
 }
 
 func newHealth(minSamples int, errRate float64) *Health {

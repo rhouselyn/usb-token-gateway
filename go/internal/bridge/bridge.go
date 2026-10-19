@@ -4,6 +4,7 @@ package bridge
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"usbridge/internal/audit"
+	"usbridge/internal/codexgen"
 	"usbridge/internal/remember"
 	"usbridge/internal/sched"
 	"usbridge/internal/vault"
@@ -138,6 +140,11 @@ func (b *Bridge) Unlock(password string) (adminToken string, created bool, err e
 	s := sched.New(v.Data.Channels, v.Data.Policy)
 	s.SetCooldownDefault(v.Data.Policy.Circuit.CooldownS)
 	b.sched = s
+	// keep the bundled Codex CLI home in sync with the just-unlocked vault
+	// (best effort; the panel surfaces problems on the next change)
+	if err := codexgen.Sync(b.dataDir, b.port, v.Data.DownstreamKeys, v.Data.CodexModel); err != nil {
+		fmt.Println("[bridge] codex sync:", err)
+	}
 	return b.admin, created, nil
 }
 

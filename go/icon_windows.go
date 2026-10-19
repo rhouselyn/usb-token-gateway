@@ -14,7 +14,7 @@ import (
 )
 
 const (
-	imageIcon     = 1
+	imageIcon      = 1
 	lrLoadFromFile = 0x0010
 	lrDefaultSize  = 0x0040
 	lrShared       = 0x8000

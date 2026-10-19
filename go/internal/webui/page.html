@@ -347,9 +347,14 @@
         <span class="ico">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M15 7a4 4 0 1 0-3.5 3.97M12.6 11 4 20v0h3v-3h3v-3h2.4"/></svg>
         </span>
-        <div><h2>下游私有 Key</h2><p>发给你的项目用；可随时停用或删除</p></div>
+        <div><h2>下游私有 Key</h2><p>发给你的项目用；勾「Codex」列即把该 Key 写进内置 Codex CLI（单选）</p></div>
       </div>
       <div id="dkeys"></div>
+      <div class="rowline" style="margin-top:12px;flex-wrap:wrap">
+        <span class="dim" style="align-self:center">Codex 模型名</span>
+        <input id="codex_model" placeholder="gpt-5.1-codex" style="width:200px">
+        <button class="sm" onclick="setCodexModel()">保存到 Codex 配置</button>
+      </div>
       <div class="rowline" style="margin-top:14px">
         <input id="dk_name" placeholder="备注名（如：我的机器人）" size="22">
         <input id="dk_ttl" type="number" placeholder="有效期(小时，0=永久)" style="width:190px">
@@ -614,13 +619,17 @@ async function refresh(){
       ) : '<div class="dim" style="padding:6px 2px">还没有渠道 —— 展开下面「添加渠道」把你的 API Key 加进来。</div>';
 
     document.getElementById('dkeys').innerHTML = table(
-      ['名称','下游 Key','状态','有效期','操作'],
+      ['名称','下游 Key','状态','有效期','Codex','操作'],
       dks.keys.map(k=>{
         const shown = revealKeys.has(k.key);
         return `<tr><td>${h(k.name)||'<span class="dim">未命名</span>'}</td>
         <td><code class="${shown?'':'dim'}">${shown ? h(k.key) : h(k.key_masked)}</code></td>
         <td>${k.enabled?'<span class="chip ok">启用</span>':'<span class="chip">停用</span>'}</td>
         <td class="dim">${k.ttl_hours? k.ttl_hours+' 小时<br><span class="dim">'+fmtTtl(k)+'</span>':'永久'}</td>
+        <td style="text-align:center"><input type="checkbox" ${k.codex_use?'checked':''}
+            title="勾选后 Codex CLI 使用这个 Key（单选，配置随改动实时更新）"
+            ${k.enabled?'':'disabled'}
+            onchange="codexKey('${h(k.key)}', this.checked)"></td>
         <td class="rowline" style="flex-wrap:nowrap">
             <button class="sm" onclick="copyKey('${h(k.key)}')">${ICON.copy}复制</button>
             <button class="sm" onclick="reveal('${h(k.key)}')">${shown?ICON.eyeOff+'收起':ICON.eye+'显示'}</button>
@@ -628,6 +637,9 @@ async function refresh(){
             <button class="sm danger" onclick="cmd('del_dkey','${h(k.key)}')">${ICON.trash}</button></td></tr>`
       })
       ,'<div class="dim" style="padding:6px 2px">暂无 Key —— 点下面「生成新 Key」。</div>');
+
+    const cmInput = document.getElementById('codex_model');
+    if (document.activeElement !== cmInput) cmInput.value = dks.codex_model || '';
 
     document.getElementById('recent').innerHTML = table(
       ['时间','模型','渠道','状态','首字','tokens','错误'],
@@ -716,6 +728,22 @@ async function cmd(action, arg){
   try{
     const j = await jpost(action, {arg});
     if (!j.ok) toast('失败：' + (j.error||''), 'bad'); else toast('已更新');
+  }catch(e){ toast(String(e), 'bad'); }
+  refresh();
+}
+async function codexKey(key, on){
+  try{
+    const j = await jpost('codex_dkey', {arg:key, off:!on});
+    if (!j.ok) toast('失败：' + (j.error||''), 'bad');
+    else toast(on ? '已设为 Codex 专用 Key，配置已更新' : '已取消 Codex 绑定');
+  }catch(e){ toast(String(e), 'bad'); }
+  refresh();
+}
+async function setCodexModel(){
+  try{
+    const j = await jpost('set_codex_model', {arg: document.getElementById('codex_model').value});
+    if (!j.ok) toast('失败：' + (j.error||''), 'bad');
+    else toast('已写入 Codex 配置');
   }catch(e){ toast(String(e), 'bad'); }
   refresh();
 }

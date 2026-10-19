@@ -115,15 +115,79 @@ if ($Version) {
     if ($Version -notmatch '^v') { $Version = "v$Version" }
     Step "构建正式版 exe"
     & (Join-Path $Root "build.ps1") -Release
+
+    # ---- 内置 Codex CLI（/v1/responses 客户端）打进 usb\bin\ ----
+    $binDir = Join-Path $Root "usb\bin"
+    New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+    $codexExe = Join-Path $binDir "codex.exe"
+    if (Test-Path $codexExe) {
+        Step "codex.exe 已存在（usb\bin），跳过下载"
+    } else {
+        Step "下载 Codex CLI（openai/codex latest · windows-x64）"
+        $ProgressPreference = "SilentlyContinue"
+        [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $got = $false
+        foreach ($i in 1..3) {
+            try {
+                $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/openai/codex/releases/latest" -TimeoutSec 60
+                $asset = $rel.assets |
+                    Where-Object { $_.name -like "*x86_64-pc-windows-msvc*" -and $_.name -like "*.zip" } |
+                    Select-Object -First 1
+                if (-not $asset) { throw "release 资产里没找到 windows-x64 zip" }
+                $zip = Join-Path $env:TEMP "codex-cli-win.zip"
+                Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zip -TimeoutSec 900
+                $unz = Join-Path $env:TEMP "codex-cli-win"
+                if (Test-Path $unz) { Remove-Item $unz -Recurse -Force }
+                Expand-Archive -Path $zip -DestinationPath $unz -Force
+                $inner = Get-ChildItem $unz -Recurse -Filter "*.exe" | Select-Object -First 1
+                if (-not $inner) { throw "zip 里没有 exe" }
+                Copy-Item $inner.FullName $codexExe -Force
+                $got = $true
+                break
+            } catch {
+                Write-Host "[!] 第 $i 次下载失败：$($_.Exception.Message)" -ForegroundColor Yellow
+                if ($i -lt 3) { Start-Sleep -Seconds 45 }
+            }
+        }
+        if (-not $got) {
+            Write-Host "[!] codex.exe 下载失败 —— 本版 Release 将不带 Codex，可稍后重跑 publish.ps1" -ForegroundColor Yellow
+        }
+    }
+
+    # GitHub 服务端强制 ASCII 附件名（中文名会被改成 default.txt）
+    # → 先拷成 ASCII 名上传，创建完再用 PATCH 打中文 label
+    $guideSrc = Join-Path $Root "usb\使用说明.txt"
+    $batSrc   = Join-Path $Root "usb\启动 Codex.bat"
+    $guide    = Join-Path $Root "usb\usage-guide.txt"
+    $launcher = Join-Path $Root "usb\launch-codex.bat"
+    if (Test-Path $guideSrc) { Copy-Item $guideSrc $guide -Force }
+    if (Test-Path $batSrc)   { Copy-Item $batSrc $launcher -Force }
+
     $assets = @()
-    foreach ($f in @("usb\usb-bridge.exe", "usb\使用说明.txt")) {
+    foreach ($f in @("usb\usb-bridge.exe", "usb\bin\codex.exe", "usb\usage-guide.txt", "usb\launch-codex.bat")) {
         $p = Join-Path $Root $f
         if (Test-Path $p) { $assets += $p } else { Write-Host "[!] 缺少 $f（跳过该附件）" -ForegroundColor Yellow }
     }
     if (-not $assets) { Fail "没有可作为附件的文件" }
     Step "发布 $Version（附件：$($assets.Count) 个）"
     gh release create $Version @assets --title "$Version — U盘即插即用的本地 LLM token 中转站" `
-        --notes "双击即用：首次设一次主密码，之后静默启动、不弹浏览器。`n`n- OpenAI 兼容端点：``/v1/chat/completions``、``/v1/models``、``/v1/embeddings```n- Anthropic 原生端点：``/v1/messages``（含 SSE 流式）`n- 多渠道轮换 / 熔断 / 429 冷却`n- 上游 Key 加密在 U 盘内（Argon2id + AES-GCM），默认只监听 127.0.0.1`n`n用法：把 ``usb-bridge.exe`` 拷进 U 盘 → 插到任意 Windows 电脑 → 双击。"
+        --notes "双击即用：首次设一次主密码，之后静默启动、不弹浏览器。`n`n- OpenAI 兼容端点：``/v1/chat/completions``、``/v1/models``、``/v1/embeddings```n- OpenAI Responses 端点：``/v1/responses``（内置 Codex CLI 即插即用）`n- Anthropic 原生端点：``/v1/messages``（含 SSE 流式）`n- 多渠道轮换 / 熔断 / 429 冷却`n- 面板勾选「Codex」Key + 模型名 → 实时写进 U 盘 Codex 配置`n- 上游 Key 加密在 U 盘内（Argon2id + AES-GCM），默认只监听 127.0.0.1`n`n用法：usb-bridge.exe 拷进 U 盘根目录；codex.exe 放 U 盘 bin\ 文件夹；launch-codex.bat 放 U 盘根目录（即「启动 Codex.bat」）→ 双击即用。"
+
+    # 给 ASCII 名的附件打上中文 label（页面按 label 显示）
+    try {
+        $rel = gh api "repos/$Owner/$Repo/releases/tags/$Version" | ConvertFrom-Json
+        foreach ($a in $rel.assets) {
+            if ($a.name -eq "usage-guide.txt") {
+                gh api "repos/$Owner/$Repo/releases/assets/$($a.id)" -X PATCH -f label="使用说明.txt" | Out-Null
+            }
+            if ($a.name -eq "launch-codex.bat") {
+                gh api "repos/$Owner/$Repo/releases/assets/$($a.id)" -X PATCH -f label="启动 Codex.bat" | Out-Null
+            }
+        }
+        Step "附件 label 已设置（使用说明.txt / 启动 Codex.bat）"
+    } catch {
+        Write-Host "[!] label 补丁失败（不影响下载，可在网页手动改）" -ForegroundColor Yellow
+    }
 }
 
 # ---------------------------------------------------------------- 6) 收尾提示
