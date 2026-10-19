@@ -1,0 +1,105 @@
+# =============================================================================
+#  USB Token Gateway — .gitignore
+#  规则目标：仓库里只有「源码 + 文档」。任何个人身份、密钥、运行数据、构建产物
+#           都不进 Git；成品 exe 走 GitHub Releases 附件。
+# =============================================================================
+
+# ---------------------------------------------------------------- 1) 敏感数据
+# 加密配置 / 会话凭据 / 端口标记 —— 这些是「你的身份」，永远不要提交
+*.vault
+config.vault
+session.key
+*.sessionkey
+port.txt
+*dpapi*
+
+# 运行时数据目录（注意：go/internal/bridge/ 是源码，所以逐个精确排除）
+/bridge/
+usb/bridge/
+python/bridge/
+go/bridge-*/
+go/bridge/
+**/bridge-e2e/
+**/bridge-interop/
+
+# 用量与审计：sqlite 库 + 审计日志文件（注意：go/internal/audit/ 是源码，不能整目录排除）
+*.db
+*.sqlite
+*.sqlite3
+log-*.jsonl
+
+# 本地私密配置 / 环境变量（如果你要做多环境配置，请用 *.example 模板）
+.env
+.env.*
+!.env.example
+*.local
+secrets*
+!secrets.example*
+*.pem
+*.p12
+id_rsa*
+credentials*.json
+
+# ---------------------------------------------------------------- 2) 构建产物
+# 二进制一律不进仓库：成品走 GitHub Releases 附件，开发版/中间产物就地丢弃
+*.exe
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+bin/
+dist/
+build/
+!build.ps1
+!build.sh
+
+# U 盘交付目录整体不入库（本机自用；对外发布走 Releases 附件）
+/usb/
+
+# Go 工作区产物
+go/usbgw.exe
+go/usb-bridge.exe
+
+# ---------------------------------------------------------------- 3) Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------- 4) 日志/临时
+*.log
+gw-runs.log
+*.tmp
+*.temp
+*.swp
+*~
+# 测试期临时目录 / 调试残留
+usbgw-interop-*/
+usbbridge-*/
+.squash*
+squash_out.txt
+
+# ---------------------------------------------------------------- 5) 编辑器/系统
+.vscode/
+.idea/
+*.code-workspace
+*.sublime-*
+.DS_Store
+Thumbs.db
+desktop.ini
+*.lnk
+
+# ---------------------------------------------------------------- 6) 其它
+node_modules/
+package-lock.json

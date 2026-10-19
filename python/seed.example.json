@@ -1,0 +1,35 @@
+{
+  "policy": {
+    "strategy": "failover",
+    "retry_budget": 2,
+    "timeout_first_byte_s": 20,
+    "timeout_stream_idle_s": 120,
+    "circuit": {
+      "err_rate_threshold": 0.5,
+      "min_samples": 10,
+      "cooldown_s": 300
+    }
+  },
+  "channels": [
+    {
+      "id": "ch-openai",
+      "protocol": "openai",
+      "base_url": "https://api.openai.com/v1",
+      "api_key": "sk-REPLACE-ME",
+      "models": ["gpt-4o", "gpt-4o-mini", "o4-mini"],
+      "weight": 10,
+      "priority": 0,
+      "auth_header": "bearer"
+    },
+    {
+      "id": "ch-claude",
+      "protocol": "anthropic",
+      "base_url": "https://api.anthropic.com",
+      "api_key": "sk-ant-REPLACE-ME",
+      "models": ["claude-3-5-sonnet*", "claude-3-7-*", "claude-4*"],
+      "weight": 10,
+      "priority": 1,
+      "auth_header": "x-api-key"
+    }
+  ]
+}
