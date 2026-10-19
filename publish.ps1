@@ -101,7 +101,7 @@ if ($LASTEXITCODE -ne 0) { Fail "推送失败" }
 # ---------------------------------------------------------------- 4) SEO 元数据
 if (-not $SkipDocs) {
     Step "设置仓库描述 / topics / 主页"
-    gh repo edit "$Owner/$Repo" --description $Description --homepage "https://github.com/$Owner/$Repo/releases" --add-topic @($Topics) | Out-Null
+    gh repo edit "$Owner/$Repo" --description $Description --homepage "https://github.com/$Owner/$Repo/releases" --add-topic ($Topics -join ",") | Out-Null
     if ($LASTEXITCODE -ne 0) { Write-Host "[!] topics/描述设置失败，可在网页 Settings 手动补" -ForegroundColor Yellow }
 }
 

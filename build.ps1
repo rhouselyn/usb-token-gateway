@@ -41,15 +41,21 @@ Write-Host "[build] project = $Root"
 
 if (-not $Release -or $Dev) {
     Write-Host "[build] 开发版 go\usbgw.exe ..."
-    & $go build -o (Join-Path $GoDir "usbgw.exe") $GoDir
-    if ($LASTEXITCODE -ne 0) { throw "开发版构建失败" }
+    Push-Location $GoDir
+    & $go build -o "usbgw.exe" .
+    $devOk = ($LASTEXITCODE -eq 0)
+    Pop-Location
+    if (-not $devOk) { throw "开发版构建失败" }
 }
 
 if ($Release -or (-not $Dev)) {
     Write-Host "[build] 正式版 usb\usb-bridge.exe ..."
     $tmp = Join-Path $env:TEMP "usb-bridge-build.exe"
-    & $go build -trimpath -ldflags "-H windowsgui -s -w" -o $tmp $GoDir
-    if ($LASTEXITCODE -ne 0) { throw "正式版构建失败" }
+    Push-Location $GoDir
+    & $go build -trimpath -ldflags "-H windowsgui -s -w" -o $tmp .
+    $relOk = ($LASTEXITCODE -eq 0)
+    Pop-Location
+    if (-not $relOk) { throw "正式版构建失败" }
     New-Item -ItemType Directory -Force -Path $UsbDir | Out-Null
     $dst = Join-Path $UsbDir "usb-bridge.exe"
     try {
