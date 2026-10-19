@@ -23,7 +23,8 @@
 - **Key 一堆，轮换全靠手** —— OpenAI、Claude、各家中转站攒了一堆 API key：这个 429 了、那个额度见底了，就得挨个项目改配置、挨个重启。
 - **换台电脑就抓瞎** —— 临时在别人的电脑 / 公司机器 / 出差笔记本上干活，懒得把一堆 key 拷过去；明文 `.env` 拷来拷去，用完还删不干净。
 - **配置比干活还累** —— 每台电脑、每个客户端都要重新填一遍 `base_url` 和 key。
-- **想在远程服务器 / 新电脑上直接用 Codex？** —— 装 Node、配 key、写 `auth.json`，折腾半天才能开聊。现在插上 U 盘双击「启动 Codex.bat」就直接开干，随时用。
+- **想在远程服务器 / 新电脑上直接用 Codex？** —— 装环境、配 key、手写 `auth.json`，折腾半天才能开聊。
+- **改个 key 还得动配置工具** —— key 换了、429 了，得打开 CC Switch 之类的工具挨个改配置；想多 key 轮换？没门。
 
 **一个 U 盘就够了** —— 它是即插即用的 Token 中转站：
 
@@ -31,6 +32,8 @@
 2. 所有客户端永远只认这一组配置——一次填好，换电脑也不用重填
 3. 多渠道**自动轮换**（failover / 轮询 / 加权），熔断、429 冷却全自动，哪个 key 出事都无感切换
 4. 你随身携带的**最强大脑**：真实 key 加密锁在 U 盘里，**数据不外泄**；**拔出即走**，不担心 key 泄露被别人偷走
+5. **Codex 直接开干**：双击「启动 Codex.bat」就用上内置的 Codex CLI——未登录先弹登录页，解锁瞬间自动打开；改 key / 轮换在面板勾一下就实时写进 Codex 配置，CC Switch 什么的再也不用碰
+6. **不插 U 盘也行**：把整个文件夹拷到电脑本地跑，体验完全一样（配置是主密码加密的，拷去哪都安全；换机器首次输一次密码即可）
 
 ## 特性 / Features
 
@@ -67,8 +70,8 @@ LangChain / LlamaIndex · 以及任何 OpenAI 兼容的 Agent / App。
 首次在这台电脑输一次主密码，之后**双击即用、不弹浏览器**。它是单文件静态二进制，
 不需要装 Go、不需要任何运行库、也不需要项目其它文件。
 
-> **exe 走 GitHub Releases**（构建产物不入库）：Release 附件里同时挂 `usb-bridge.exe`
-> 与 `使用说明.txt`。
+> **exe 走 GitHub Releases**（构建产物不入库）：Release 附件挂 `usb-bridge.exe` 与
+> `usb-token-gateway-win64.zip`（内含 Codex CLI 全套、`启动 Codex.bat` 与 `使用说明.txt`）。
 > ⚠️ 上传或分享时**绝不要带上 `bridge/` 目录**——那里面是你的加密配置 `config.vault`
 > 与「记住本机」凭据 `session.key`。
 
@@ -78,9 +81,9 @@ LangChain / LlamaIndex · 以及任何 OpenAI 兼容的 Agent / App。
 
 ### 1. 拿到 exe
 
-二选一：
-
-- **从 Releases 下载** `usb-bridge.exe`（只想用的人走这条）。
+- **从 Releases 下载** `usb-token-gateway-win64.zip`（推荐，含 Codex CLI 全套），
+  解压到 U 盘或电脑本地任意目录即可——根目录只有两个可点击的：
+  `usb-bridge.exe`（中转站）与 `启动 Codex.bat`（Codex）。只要中转站的话单独下 `usb-bridge.exe`。
 - **自己构建**（需要 Go 1.21+）：
 
   ```powershell

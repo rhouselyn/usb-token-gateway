@@ -220,17 +220,28 @@ func launchCodex(b *bridge.Bridge) {
 	spawnCodex(b)
 }
 
-// spawnCodex starts the bundled Codex CLI (bin/codex.exe next to us) with
-// CODEX_HOME on the USB stick -- chat history and config never touch the host.
-// A console subprocess of a windowsgui app gets its own terminal window.
+// spawnCodex starts the bundled Codex CLI with CODEX_HOME on the USB stick --
+// chat history and config never touch the host.  The codex bundle lives in
+// bin\codex\ (main exe + helper binaries); a console subprocess of a
+// windowsgui app gets its own terminal window.
 func spawnCodex(b *bridge.Bridge) {
 	exe, err := os.Executable()
 	if err != nil {
 		return
 	}
-	codexExe := filepath.Join(filepath.Dir(exe), "bin", "codex.exe")
-	if _, err := os.Stat(codexExe); err != nil {
-		balloonNotify("Codex 未找到", "U 盘缺少 bin\\codex.exe：用 publish.ps1 重新打包，或从 openai/codex Releases 下载放入")
+	dir := filepath.Dir(exe)
+	var codexExe string
+	for _, cand := range []string{
+		filepath.Join(dir, "bin", "codex", "codex.exe"), // release zip layout
+		filepath.Join(dir, "bin", "codex.exe"),          // legacy single-file layout
+	} {
+		if st, err := os.Stat(cand); err == nil && !st.IsDir() {
+			codexExe = cand
+			break
+		}
+	}
+	if codexExe == "" {
+		balloonNotify("Codex 未找到", "U 盘缺少 bin\\codex\\ 文件夹：下载 Release 里的 usb-token-gateway-win64.zip 解压即得")
 		return
 	}
 	home := filepath.Join(*dataDirFlag, "codex")

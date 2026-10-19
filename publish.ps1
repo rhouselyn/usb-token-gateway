@@ -116,78 +116,80 @@ if ($Version) {
     Step "构建正式版 exe"
     & (Join-Path $Root "build.ps1") -Release
 
-    # ---- 内置 Codex CLI（/v1/responses 客户端）打进 usb\bin\ ----
-    $binDir = Join-Path $Root "usb\bin"
-    New-Item -ItemType Directory -Force -Path $binDir | Out-Null
-    $codexExe = Join-Path $binDir "codex.exe"
-    if (Test-Path $codexExe) {
-        Step "codex.exe 已存在（usb\bin），跳过下载"
+    # ---- 内置 Codex CLI：下载 → 组装合一 zip ----
+    # zip 布局（解压即得完整 U 盘目录，根目录只有两个可点击的）：
+    #   usb-token-gateway\
+    #     usb-bridge.exe        双击 = 中转站
+    #     启动 Codex.bat         双击 = Codex
+    #     使用说明.txt
+    #     bin\codex\...          codex 全套（主程序已改名 codex.exe）
+    Remove-Item (Join-Path $Root "usb\usage-guide.txt"), (Join-Path $Root "usb\launch-codex.bat") -Force -ErrorAction SilentlyContinue
+    $binDir  = Join-Path $Root "usb\bin\codex"
+    $stageDir = Join-Path $Root "usb\pkg\usb-token-gateway"
+    $zipOut  = Join-Path $Root "usb\usb-token-gateway-win64.zip"
+
+    if (Test-Path (Join-Path $binDir "codex.exe")) {
+        Step "codex 已存在（usb\bin\codex），跳过下载"
     } else {
         Step "下载 Codex CLI（openai/codex latest · windows-x64）"
         $ProgressPreference = "SilentlyContinue"
         [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+        $unz = Join-Path $env:TEMP "codex-cli-win"
+        $zip = Join-Path $env:TEMP "codex-cli-win.zip"
         $got = $false
-        foreach ($i in 1..3) {
+        foreach ($i in 1..5) {
             try {
-                $rel = Invoke-RestMethod -Uri "https://api.github.com/repos/openai/codex/releases/latest" -TimeoutSec 60
-                $asset = $rel.assets |
-                    Where-Object { $_.name -like "*x86_64-pc-windows-msvc*" -and $_.name -like "*.zip" } |
-                    Select-Object -First 1
-                if (-not $asset) { throw "release 资产里没找到 windows-x64 zip" }
-                $zip = Join-Path $env:TEMP "codex-cli-win.zip"
-                Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zip -TimeoutSec 900
-                $unz = Join-Path $env:TEMP "codex-cli-win"
+                # 注意：openai/codex 的 Release 里还挂着自家 lint 工具（cargo-dylint 等，
+                # 资产名同样含 x86_64-pc-windows-msvc），必须用固定直链精确匹配。
+                # 这条链路常被中途掐断，用 curl 断点续传（IWR 会留下截断的 zip）。
+                $url = "https://github.com/openai/codex/releases/latest/download/codex-x86_64-pc-windows-msvc.exe.zip"
+                & curl.exe -L -sS -o $zip --retry 8 --retry-delay 5 --retry-all-errors -C - $url
+                if ($LASTEXITCODE -ne 0) { throw "curl 退出码 $LASTEXITCODE" }
                 if (Test-Path $unz) { Remove-Item $unz -Recurse -Force }
                 Expand-Archive -Path $zip -DestinationPath $unz -Force
-                $inner = Get-ChildItem $unz -Recurse -Filter "*.exe" | Select-Object -First 1
-                if (-not $inner) { throw "zip 里没有 exe" }
-                Copy-Item $inner.FullName $codexExe -Force
+                $main = Get-ChildItem $unz -Recurse -Filter "codex-x86_64-pc-windows-msvc.exe" | Select-Object -First 1
+                if (-not $main) { throw "zip 里没有 codex-x86_64-pc-windows-msvc.exe" }
+                if ($main.Length -lt 5MB) { throw "主程序只有 $([math]::Round($main.Length/1MB,1))MB，抓到的不是 codex" }
                 $got = $true
                 break
             } catch {
                 Write-Host "[!] 第 $i 次下载失败：$($_.Exception.Message)" -ForegroundColor Yellow
-                if ($i -lt 3) { Start-Sleep -Seconds 45 }
+                if ($i -lt 5) { Start-Sleep -Seconds 45 }
             }
         }
         if (-not $got) {
-            Write-Host "[!] codex.exe 下载失败 —— 本版 Release 将不带 Codex，可稍后重跑 publish.ps1" -ForegroundColor Yellow
+            Write-Host "[!] codex 下载失败 —— 本版 Release 将只有 usb-bridge.exe，可稍后重跑 publish.ps1" -ForegroundColor Yellow
+        } else {
+            Step "组装 usb-token-gateway-win64.zip（codex 全套收进 bin\codex\）"
+            if (Test-Path $stageDir) { Remove-Item $stageDir -Recurse -Force }
+            New-Item -ItemType Directory -Force -Path (Join-Path $stageDir "bin\codex") | Out-Null
+            Get-ChildItem $unz | ForEach-Object {
+                if ($_.PSIsContainer) {
+                    Copy-Item $_.FullName (Join-Path $stageDir "bin\codex") -Recurse -Force
+                } elseif ($_.Name -eq "codex-x86_64-pc-windows-msvc.exe") {
+                    Copy-Item $_.FullName (Join-Path $stageDir "bin\codex\codex.exe") -Force
+                } else {
+                    Copy-Item $_.FullName (Join-Path $stageDir "bin\codex") -Force
+                }
+            }
+            Copy-Item (Join-Path $Root "usb\usb-bridge.exe")  $stageDir -Force
+            Copy-Item (Join-Path $Root "usb\启动 Codex.bat")  $stageDir -Force
+            Copy-Item (Join-Path $Root "usb\使用说明.txt")    $stageDir -Force
+            if (Test-Path $zipOut) { Remove-Item $zipOut -Force }
+            Compress-Archive -Path $stageDir -DestinationPath $zipOut -CompressionLevel Optimal
+            Write-Host ("[publish] zip 大小：{0:N1} MB" -f ((Get-Item $zipOut).Length/1MB)) -ForegroundColor Cyan
         }
     }
 
-    # GitHub 服务端强制 ASCII 附件名（中文名会被改成 default.txt）
-    # → 先拷成 ASCII 名上传，创建完再用 PATCH 打中文 label
-    $guideSrc = Join-Path $Root "usb\使用说明.txt"
-    $batSrc   = Join-Path $Root "usb\启动 Codex.bat"
-    $guide    = Join-Path $Root "usb\usage-guide.txt"
-    $launcher = Join-Path $Root "usb\launch-codex.bat"
-    if (Test-Path $guideSrc) { Copy-Item $guideSrc $guide -Force }
-    if (Test-Path $batSrc)   { Copy-Item $batSrc $launcher -Force }
-
     $assets = @()
-    foreach ($f in @("usb\usb-bridge.exe", "usb\bin\codex.exe", "usb\usage-guide.txt", "usb\launch-codex.bat")) {
+    foreach ($f in @("usb\usb-bridge.exe", "usb\usb-token-gateway-win64.zip")) {
         $p = Join-Path $Root $f
         if (Test-Path $p) { $assets += $p } else { Write-Host "[!] 缺少 $f（跳过该附件）" -ForegroundColor Yellow }
     }
     if (-not $assets) { Fail "没有可作为附件的文件" }
     Step "发布 $Version（附件：$($assets.Count) 个）"
     gh release create $Version @assets --title "$Version — U盘即插即用的本地 LLM token 中转站" `
-        --notes "双击即用：首次设一次主密码，之后静默启动、不弹浏览器。`n`n- OpenAI 兼容端点：``/v1/chat/completions``、``/v1/models``、``/v1/embeddings```n- OpenAI Responses 端点：``/v1/responses``（内置 Codex CLI 即插即用）`n- Anthropic 原生端点：``/v1/messages``（含 SSE 流式）`n- 多渠道轮换 / 熔断 / 429 冷却`n- 面板勾选「Codex」Key + 模型名 → 实时写进 U 盘 Codex 配置`n- 上游 Key 加密在 U 盘内（Argon2id + AES-GCM），默认只监听 127.0.0.1`n`n用法：usb-bridge.exe 拷进 U 盘根目录；codex.exe 放 U 盘 bin\ 文件夹；launch-codex.bat 放 U 盘根目录（即「启动 Codex.bat」）→ 双击即用。"
-
-    # 给 ASCII 名的附件打上中文 label（页面按 label 显示）
-    try {
-        $rel = gh api "repos/$Owner/$Repo/releases/tags/$Version" | ConvertFrom-Json
-        foreach ($a in $rel.assets) {
-            if ($a.name -eq "usage-guide.txt") {
-                gh api "repos/$Owner/$Repo/releases/assets/$($a.id)" -X PATCH -f label="使用说明.txt" | Out-Null
-            }
-            if ($a.name -eq "launch-codex.bat") {
-                gh api "repos/$Owner/$Repo/releases/assets/$($a.id)" -X PATCH -f label="启动 Codex.bat" | Out-Null
-            }
-        }
-        Step "附件 label 已设置（使用说明.txt / 启动 Codex.bat）"
-    } catch {
-        Write-Host "[!] label 补丁失败（不影响下载，可在网页手动改）" -ForegroundColor Yellow
-    }
+        --notes "双击即用：首次设一次主密码，之后静默启动、不弹浏览器。`n`n**安装**：下载 ``usb-token-gateway-win64.zip`` 解压到 U 盘（或电脑本地）→ 根目录双击 ``usb-bridge.exe``（中转站）或 ``启动 Codex.bat``（Codex CLI）。只要中转站的话单独下 ``usb-bridge.exe`` 即可。`n`n- OpenAI 兼容端点：``/v1/chat/completions``、``/v1/models``、``/v1/embeddings```n- OpenAI Responses 端点：``/v1/responses``（内置 Codex CLI 即插即用）`n- Anthropic 原生端点：``/v1/messages``（含 SSE 流式）`n- 多渠道轮换 / 熔断 / 429 冷却`n- 面板勾选「Codex」Key + 模型名 → 实时写进 Codex 配置，CC Switch 不用再碰`n- 上游 Key 加密存放（Argon2id + AES-GCM），默认只监听 127.0.0.1"
 }
 
 # ---------------------------------------------------------------- 6) 收尾提示
