@@ -16,6 +16,21 @@
 
 ![USB Token Gateway — 便携式本地 LLM API 网关 / portable local LLM API gateway](docs/social-preview.png)
 
+## 痛点 / Pain points
+
+**你是不是也这样：**
+
+- **Key 一堆，轮换全靠手** —— OpenAI、Claude、各家中转站攒了一堆 API key：这个 429 了、那个额度见底了，就得挨个项目改配置、挨个重启。
+- **换台电脑就抓瞎** —— 临时在别人的电脑 / 公司机器 / 出差笔记本上干活，懒得把一堆 key 拷过去；明文 `.env` 拷来拷去，用完还删不干净。
+- **配置比干活还累** —— 每台电脑、每个客户端都要重新填一遍 `base_url` 和 key。
+
+**一个 U 盘就够了** —— 它是即插即用的 Token 中转站：
+
+1. 插进电脑、双击一下，面板**一键复制**固定的本地端口和 key（`http://127.0.0.1:8989/v1` + `sk-usb-…`）
+2. 所有客户端永远只认这一组配置——一次填好，换电脑也不用重填
+3. 多渠道**自动轮换**（failover / 轮询 / 加权），熔断、429 冷却全自动，哪个 key 出事都无感切换
+4. 你随身携带的**最强大脑**：真实 key 加密锁在 U 盘里，**数据不外泄**；**拔出即走**，不担心 key 泄露被别人偷走
+
 ## 特性 / Features
 
 - **Drop-in OpenAI endpoint** — `/v1/chat/completions`、`/v1/models`、`/v1/embeddings`；任何 OpenAI SDK / 客户端只要改 `base_url`
