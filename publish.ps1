@@ -43,12 +43,20 @@ $Topics = @(
 function Fail($msg) { Write-Host "[x] $msg" -ForegroundColor Red; exit 1 }
 function Step($msg) { Write-Host "[publish] $msg" -ForegroundColor Cyan }
 
+# PS 5.1 下 $ErrorActionPreference=Stop 时，原生命令 stderr 一旦重定向就会被
+# 包装成终止错误；这里临时降级为 Continue 再重定向丢弃，用退出码判断结果。
+function Test-Quiet([scriptblock]$sb) {
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { & $sb 2>$null | Out-Null } finally { $ErrorActionPreference = $prev }
+    return ($LASTEXITCODE -eq 0)
+}
+
 # ---------------------------------------------------------------- 0) 检查 gh
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     Fail "未找到 gh。先执行：winget install GitHub.cli（装完重开终端）"
 }
-cmd /c "gh auth status >nul 2>nul"
-if ($LASTEXITCODE -ne 0) {
+if (-not (Test-Quiet { gh auth status })) {
     Fail "gh 未登录。先执行：gh auth login -h github.com -p https -w"
 }
 
@@ -67,8 +75,7 @@ if (-not $localEmail) {
 }
 
 # ---------------------------------------------------------------- 2) 首次提交
-cmd /c "git rev-parse --verify HEAD >nul 2>nul"
-if ($LASTEXITCODE -ne 0) {
+if (-not (Test-Quiet { git rev-parse --verify HEAD })) {
     git add -A
     git commit -m $CommitMessage | Out-Null
     Step "已创建首次提交"
@@ -85,11 +92,9 @@ if ($LASTEXITCODE -ne 0) {
 
 # ---------------------------------------------------------------- 3) 建仓/推送
 $visibility = if ($Private) { "--private" } else { "--public" }
-cmd /c "gh repo view $Owner/$Repo >nul 2>nul"
-if ($LASTEXITCODE -eq 0) {
+if (Test-Quiet { gh repo view "$Owner/$Repo" }) {
     Step "仓库已存在，直接推送"
-    cmd /c "git remote get-url origin >nul 2>nul"
-    if ($LASTEXITCODE -ne 0) { git remote add origin "https://github.com/$Owner/$Repo.git" }
+    if (-not (Test-Quiet { git remote get-url origin })) { git remote add origin "https://github.com/$Owner/$Repo.git" }
     git branch -M main
     git push -u origin main
 } else {
