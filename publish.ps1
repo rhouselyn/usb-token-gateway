@@ -56,8 +56,8 @@ function Test-Quiet([scriptblock]$sb) {
 if (-not (Get-Command gh -ErrorAction SilentlyContinue)) {
     Fail "未找到 gh。先执行：winget install GitHub.cli（装完重开终端）"
 }
-if (-not (Test-Quiet { gh auth status })) {
-    Fail "gh 未登录。先执行：gh auth login -h github.com -p https -w"
+if (-not (Test-Quiet { gh api user })) {
+    Fail "gh 认证不可用。可执行：gh auth login -h github.com -p https -w；或设置 GH_TOKEN 环境变量"
 }
 
 $Owner = (gh api user --jq .login).Trim()
