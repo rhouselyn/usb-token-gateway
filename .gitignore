@@ -57,6 +57,10 @@ build/
 # U 盘交付目录整体不入库（本机自用；对外发布走 Releases 附件）
 /usb/
 
+# 早期 Python 原型 + 端到端测试：只在本机保留，仓库里只放可构建出 exe 的 Go 源码
+/python/
+/tests/
+
 # Go 工作区产物
 go/usbgw.exe
 go/usb-bridge.exe

@@ -16,7 +16,7 @@
 
 ![USB Token Gateway — 便携式本地 LLM API 网关 / portable local LLM API gateway](docs/social-preview.png)
 
-## 痛点 / Pain points
+## 痛点
 
 **你是不是也这样：**
 
@@ -35,20 +35,20 @@
 5. **Codex 直接开干**：双击「启动 Codex.bat」就用上内置的 Codex CLI——未登录先弹登录页，解锁瞬间自动打开；改 key / 轮换在面板勾一下就实时写进 Codex 配置，CC Switch 什么的再也不用碰
 6. **不插 U 盘也行**：把整个文件夹拷到电脑本地跑，体验完全一样（配置是主密码加密的，拷去哪都安全；换机器首次输一次密码即可）
 
-## 特性 / Features
+## 特性
 
-- **Drop-in OpenAI endpoint** — `/v1/chat/completions`、`/v1/models`、`/v1/embeddings`；任何 OpenAI SDK / 客户端只要改 `base_url`
-- **Native Anthropic endpoint** — `/v1/messages`（含流式 `message_start → content_block_delta → message_stop`），Claude 官方 SDK 直连
-- **OpenAI Responses endpoint** — `/v1/responses`（含 SSE 事件流），**Codex CLI 原生直连**
+- **OpenAI 兼容直连** — `/v1/chat/completions`、`/v1/models`、`/v1/embeddings`；任何 OpenAI SDK / 客户端只要改 `base_url`
+- **Anthropic 原生端点** — `/v1/messages`（含流式 `message_start → content_block_delta → message_stop`），Claude 官方 SDK 直连
+- **Responses 端点** — `/v1/responses`（含 SSE 事件流），**Codex CLI 原生直连**
 - **内置 Codex 一键启动** — `usb-bridge.exe --codex`（或托盘「启动 Codex」/「启动 Codex.bat」）：未登录先弹登录页、解锁瞬间自动拉起 Codex；面板勾选「Codex」Key（单选）后实时写进 U 盘 `bridge\codex\{auth.json,config.toml}`，模型名默认 `smart`（换真实模型只改面板，Codex 配置不用动），`CODEX_HOME` 指向 U 盘、对话历史不留主机
-- **Multi-channel routing** — `failover` / `round_robin` / `weighted` / `least_errors`，5 分钟健康窗 + 熔断 + 429 冷却 + 重试预算
-- **Protocol translation** — OpenAI ⇄ Anthropic 双向转换（请求体、响应体、SSE 事件流）
-- **Encrypted keys at rest** — Argon2id + AES-GCM，`config.vault` 全程密文，原子落盘
-- **Remember this device** — Windows DPAPI 绑定当前用户/机器，换电脑或换账户自动失效
-- **Portable by design** — 单文件 exe、零运行库依赖、配置随 U 盘走
-- **Local-first security** — 默认只监听 `127.0.0.1`，局域网访问必须显式开启
+- **多渠道自动路由** — `failover` / `round_robin` / `weighted` / `least_errors`，5 分钟健康窗 + 熔断 + 429 冷却 + 重试预算
+- **双协议互转** — OpenAI ⇄ Anthropic 双向转换（请求体、响应体、SSE 事件流）
+- **密钥加密存放** — Argon2id + AES-GCM，`config.vault` 全程密文，原子落盘
+- **记住这台设备** — Windows DPAPI 绑定当前用户/机器，换电脑或换账户自动失效
+- **单文件便携** — 单文件 exe、零运行库依赖、配置随 U 盘走
+- **默认只监听本机** — 默认只监听 `127.0.0.1`，局域网访问必须显式开启
 
-## 兼容客户端 / Works with
+## 兼容客户端
 
 任何允许自定义 `base_url` 的客户端都能直接接入（示例）：
 
@@ -193,10 +193,6 @@ go/                    正式版（Go，单文件 exe，无第三方运行时依
   internal/webui/      内嵌单文件控制面板（page.html）
   internal/sched/      轮换策略 + 熔断 + 冷却
   internal/probe/      启动探针、internal/remember/ DPAPI 记住本机
-python/                早期 Python 原型（用于跨语言 vault 互通验证，作为参考实现保留）
-tests/                 mock 上游 + 端到端测试（Go 103 项 / 原型 31 项）
-usb/                   本机 U 盘交付目录（**整体不入库**，见 .gitignore）
-                       = build.ps1 产出的 usb-bridge.exe + 使用说明.txt + 运行时数据 bridge/
 ```
 
 ## 开发与测试
@@ -204,14 +200,7 @@ usb/                   本机 U 盘交付目录（**整体不入库**，见 .git
 ```sh
 go -C go vet ./...                 # 静态检查
 go -C go test ./...                # 单元测试（图标编码 / Windows HICON 加载）
-python tests/e2e_go.py             # Go 端到端 103 项（含跨语言解锁、记住本机、接管）
-python tests/e2e_test.py           # Python 原型回归 31 项
-python tests/repro_sse.py          # SSE 转换最小复现
 ```
-
-环境变量（都有默认值，无需配置）：`GO_BIN` 指定 go 可执行文件、
-`USBGW_DEV_EXE` / `USBGW_PORT_GATEWAY` / `USBGW_PORT_INTEROP` / `USBGW_PORT_MOCK`
-用于换端口或换开发版产物名。
 
 ## 已知限制
 
