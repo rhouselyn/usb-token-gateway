@@ -2,9 +2,14 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"sort"
 	"strings"
+	"sync"
+	"time"
 
 	"usbridge/internal/codexgen"
 	"usbridge/internal/probe"
@@ -53,6 +58,7 @@ func (hb *httpBridge) adminAPI(w http.ResponseWriter, r *http.Request) {
 			okJSON(w, map[string]any{
 				"keys":        sanitizeKeys(hb.B.Vault().Data.DownstreamKeys),
 				"codex_model": hb.B.Vault().Data.CodexModel,
+				"smart_model": hb.B.Vault().Data.SmartModel,
 			})
 		case "recent":
 			okJSON(w, map[string]any{"recent": recentList(hb)})
@@ -65,6 +71,10 @@ func (hb *httpBridge) adminAPI(w http.ResponseWriter, r *http.Request) {
 			}
 			var out []mrow
 			seen := map[string]bool{}
+			if hb.B.SmartModel() != "" {
+				seen[vault.SmartAlias] = true
+				out = append(out, mrow{vault.SmartAlias, "smart"})
+			}
 			for _, ch := range hb.B.Vault().Data.Channels {
 				if !ch.Enabled {
 					continue
@@ -268,6 +278,15 @@ func (hb *httpBridge) adminCmd(w http.ResponseWriter, r *http.Request) {
 		}
 		v.Data.CodexModel = m
 		done(nil)
+	case "set_smart_model":
+		// the model behind the "smart" alias; empty arg clears it
+		m := strings.TrimSpace(arg)
+		if strings.ContainsAny(m, " \t\r\n\"'#") {
+			fail("invalid model name")
+			return
+		}
+		v.Data.SmartModel = m
+		done(map[string]any{"smart_model": m})
 	case "del_dkey":
 		keep := make([]*vault.DownstreamKey, 0, len(v.Data.DownstreamKeys))
 		for _, k := range v.Data.DownstreamKeys {
@@ -342,6 +361,10 @@ func (hb *httpBridge) adminCmd(w http.ResponseWriter, r *http.Request) {
 	case "lock":
 		hb.B.Lock()
 		okJSON(w, map[string]any{"ok": true, "locked": true})
+	case "fetch_models":
+		// best-effort upstream model discovery: each channel's key asks its own
+		// /models; anything that fails simply contributes nothing (no error UI).
+		okJSON(w, map[string]any{"ok": true, "models": fetchUpstreamModels(v.Data.Channels)})
 	default:
 		fail("unknown action " + action)
 	}
@@ -364,4 +387,96 @@ func channelProbe(ch *vault.Channel, timeoutFirst float64) probeResult {
 		ok: r.OK, status: r.Status, firstMS: r.FirstMS,
 		body: r.Err, err: r.Err,
 	}
+}
+
+/* -------------------------------------------------- upstream model discovery */
+
+// modelsBase turns a channel base URL into the root the /models endpoint lives
+// under, e.g. "https://api.openai.com/v1" -> same, ".../v1/chat/completions" ->
+// ".../v1".
+func modelsBase(raw string) string {
+	base := strings.TrimRight(strings.TrimSpace(raw), "/")
+	for _, suf := range []string{"/chat/completions", "/messages", "/embeddings", "/responses"} {
+		base = strings.TrimRight(strings.TrimSuffix(base, suf), "/")
+	}
+	return base
+}
+
+// listChannelModels asks one channel which models its key can use. Any failure
+// (network, non-2xx, unparsable body) yields nil.
+func listChannelModels(ch *vault.Channel) []string {
+	base := modelsBase(ch.BaseURL)
+	if base == "" || ch.APIKey == "" {
+		return nil
+	}
+	req, err := http.NewRequest("GET", base+"/models", nil)
+	if err != nil {
+		return nil
+	}
+	req.Header.Set("Accept", "application/json")
+	if ch.AuthHeader == "bearer" {
+		req.Header.Set("Authorization", "Bearer "+ch.APIKey)
+	} else {
+		req.Header.Set("x-api-key", ch.APIKey)
+		req.Header.Set("anthropic-version", "2023-06-01")
+	}
+	client := &http.Client{Timeout: 6 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil
+	}
+	var body struct {
+		Data []struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 2<<20)).Decode(&body); err != nil {
+		return nil
+	}
+	out := make([]string, 0, len(body.Data))
+	for _, m := range body.Data {
+		if m.ID != "" {
+			out = append(out, m.ID)
+		}
+	}
+	return out
+}
+
+// fetchUpstreamModels queries every enabled channel in parallel and keeps only
+// models that channel is actually allowed to route (wildcards respected).
+func fetchUpstreamModels(chs []*vault.Channel) []string {
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	seen := map[string]bool{}
+	for _, ch := range chs {
+		if ch == nil || !ch.Enabled || ch.APIKey == "" {
+			continue
+		}
+		wg.Add(1)
+		go func(ch *vault.Channel) {
+			defer wg.Done()
+			for _, m := range listChannelModels(ch) {
+				if vault.IsSmartAlias(m) || !matchesModel(ch.Models, m) {
+					continue
+				}
+				mu.Lock()
+				seen[m] = true
+				mu.Unlock()
+			}
+		}(ch)
+	}
+	wg.Wait()
+	out := make([]string, 0, len(seen))
+	for m := range seen {
+		out = append(out, m)
+	}
+	sort.Strings(out)
+	if len(out) > 200 {
+		out = out[:200]
+	}
+	return out
 }

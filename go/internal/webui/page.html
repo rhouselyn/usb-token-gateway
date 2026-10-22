@@ -4,257 +4,383 @@
 <title>USB Bridge · 控制台</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%236d8cff'/%3E%3Cstop offset='1' stop-color='%2337e0c9'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='%230b1017'/%3E%3Cpath d='M20 40h24M24 24v16M40 24v16' stroke='url(%23g)' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%23ffb020'/%3E%3Cstop offset='1' stop-color='%23ff8a3d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='16' fill='%230b1017'/%3E%3Cpath d='M20 40h24M24 24v16M40 24v16' stroke='url(%23g)' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   *,*::before,*::after{box-sizing:border-box}
+  /* 设计方向：仪表台 / instrument panel —— 石墨底 + 单一琥珀信号色 + 等宽小标签 */
   :root{
-    --bg:#06090e;
-    --panel:rgba(18,24,34,.72);
-    --panel-2:rgba(24,31,43,.72);
-    --line:rgba(148,163,184,.14);
-    --line-2:rgba(148,163,184,.26);
-    --text:#e9eef7;
-    --muted:#93a1b5;
-    --dim:#6b7a90;
-    --accent:#6d8cff;
-    --accent-2:#37e0c9;
-    --ok:#3ddc97;
-    --bad:#ff6b6b;
+    --bg:#0a0b0d;
+    --panel:#121419;
+    --panel-2:#181b21;
+    --line:rgba(255,255,255,.075);
+    --line-2:rgba(255,255,255,.16);
+    --text:#f1f2f4;
+    --muted:#a2a8b2;
+    --dim:#6c727c;
+    --accent:#ffb020;
+    --accent-2:#ff8a3d;
+    --accent-soft:rgba(255,176,32,.12);
+    --ok:#3fd68a;
+    --bad:#ff5f56;
     --warn:#ffc861;
-    --r:16px;
-    --r-sm:10px;
-    --shadow:0 24px 60px -28px rgba(0,0,0,.9);
+    --r:12px;
+    --r-sm:8px;
+    --font-ui:"Segoe UI Variable Text","Segoe UI","PingFang SC","Microsoft YaHei UI","Microsoft YaHei",sans-serif;
+    --font-display:"Bahnschrift","Segoe UI Variable Display","Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    --font-mono:"Cascadia Mono",Consolas,ui-monospace,SFMono-Regular,Menlo,monospace;
+    --shadow:0 1px 0 rgba(255,255,255,.03) inset,0 18px 44px -34px rgba(0,0,0,.9);
   }
   html,body{height:100%}
   body{
     margin:0;color:var(--text);
-    font:14px/1.55 system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-    background:var(--bg);
+    font:14px/1.55 var(--font-ui);
+    background:
+      radial-gradient(900px 420px at 10% -10%,rgba(255,176,32,.07),transparent 62%),
+      radial-gradient(720px 380px at 94% 2%,rgba(63,214,138,.045),transparent 60%),
+      var(--bg);
     -webkit-font-smoothing:antialiased;
   }
-  /* ambient background */
-  #bg{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none}
-  #bg::before,#bg::after{content:"";position:absolute;border-radius:50%;filter:blur(90px);opacity:.5}
-  #bg::before{width:60vw;height:60vw;left:-18vw;top:-24vw;background:radial-gradient(circle at 30% 30%,#2743a8,transparent 62%)}
-  #bg::after{width:55vw;height:55vw;right:-16vw;top:8vh;background:radial-gradient(circle at 60% 40%,#0e6f6a,transparent 60%)}
-  #bg i{position:absolute;inset:0;background:
-    radial-gradient(1200px 600px at 50% -10%,rgba(109,140,255,.10),transparent 60%),
-    linear-gradient(180deg,rgba(6,9,14,0) 40%,#06090e 100%)}
+  /* 细网格纹理，只在页面上方淡淡浮现 */
+  #bg{position:fixed;inset:0;z-index:-1;pointer-events:none;
+    background-image:
+      linear-gradient(rgba(255,255,255,.022) 1px,transparent 1px),
+      linear-gradient(90deg,rgba(255,255,255,.022) 1px,transparent 1px);
+    background-size:56px 56px;
+    -webkit-mask-image:radial-gradient(ellipse 90% 60% at 50% 0%,#000 0%,transparent 80%);
+            mask-image:radial-gradient(ellipse 90% 60% at 50% 0%,#000 0%,transparent 80%);
+  }
+  #bg i{display:none}
+  ::selection{background:rgba(255,176,32,.28)}
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.12);border-radius:99px;border:3px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.22);background-clip:content-box}
+  ::-webkit-scrollbar-track{background:transparent}
 
   a{color:var(--accent);text-decoration:none}
-  h1,h2,h3{margin:0;font-weight:650;letter-spacing:.2px}
-  code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Cascadia Mono",monospace;font-size:12.5px}
+  a:hover{text-decoration:underline;text-underline-offset:2px}
+  h1,h2,h3{margin:0;font-weight:600}
+  code{font-family:var(--font-mono);font-size:12px}
 
   /* ---------------------------------------------------------------- layout */
   .topbar{
     position:sticky;top:0;z-index:20;
-    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
-    padding:12px 20px;
-    background:linear-gradient(180deg,rgba(6,9,14,.92),rgba(6,9,14,.62));
-    backdrop-filter:blur(14px) saturate(140%);
+    display:flex;align-items:center;gap:9px;flex-wrap:wrap;
+    padding:10px 22px;
+    background:rgba(10,11,13,.86);
+    backdrop-filter:blur(16px) saturate(130%);
     border-bottom:1px solid var(--line);
+  }
+  .topbar::after{
+    content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;pointer-events:none;
+    background:linear-gradient(90deg,transparent,rgba(255,176,32,.5),transparent);
   }
   .brand{display:flex;align-items:center;gap:11px;min-width:0}
   .mark{
-    width:36px;height:36px;flex:none;border-radius:11px;
+    width:34px;height:34px;flex:none;border-radius:9px;
     display:grid;place-items:center;
-    background:linear-gradient(140deg,rgba(109,140,255,.22),rgba(55,224,201,.16));
-    border:1px solid var(--line-2);
-    box-shadow:0 8px 24px -14px rgba(109,140,255,.9);
+    background:linear-gradient(160deg,rgba(255,176,32,.18),rgba(255,138,61,.04));
+    border:1px solid rgba(255,176,32,.34);
   }
-  .brand h1{font-size:15.5px;line-height:1.15}
-  .brand small{display:block;color:var(--dim);font-size:11.5px;font-weight:500}
+  .brand h1{font-family:var(--font-display);font-size:15px;line-height:1.15;letter-spacing:.06em;text-transform:uppercase}
+  .brand small{display:block;color:var(--dim);font-size:10.5px;font-weight:500;letter-spacing:.06em;margin-top:1px}
   .spacer{flex:1 1 auto}
-  .wrap{max-width:1100px;margin:0 auto;padding:22px 20px 60px}
-  footer{max-width:1100px;margin:0 auto;padding:0 20px 44px;color:var(--dim);font-size:12px}
+  .wrap{max-width:1080px;margin:0 auto;padding:24px 22px 64px;counter-reset:sec}
+  footer{
+    max-width:1080px;margin:0 auto;padding:14px 22px 46px;color:var(--dim);font-size:11px;
+    border-top:1px solid var(--line);font-family:var(--font-mono);letter-spacing:.02em;
+  }
 
   /* chips */
   .chip{
     display:inline-flex;align-items:center;gap:6px;
-    padding:5px 11px;border-radius:999px;
-    background:var(--panel-2);border:1px solid var(--line);
-    color:var(--muted);font-size:12px;white-space:nowrap;
+    padding:3px 9px;border-radius:6px;
+    background:rgba(255,255,255,.03);border:1px solid var(--line);
+    color:var(--muted);font-size:11.5px;white-space:nowrap;
+    font-variant-numeric:tabular-nums;
   }
   .chip b{color:var(--text);font-weight:600}
-  .chip.ok{color:#bff5dd;border-color:rgba(61,220,151,.32);background:rgba(61,220,151,.10)}
-  .chip.bad{color:#ffd4d4;border-color:rgba(255,107,107,.3);background:rgba(255,107,107,.10)}
-  .chip.warn{color:#ffe6b8;border-color:rgba(255,200,97,.3);background:rgba(255,200,97,.10)}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(61,220,151,.16)}
-  .dot.bad{background:var(--bad);box-shadow:0 0 0 3px rgba(255,107,107,.16)}
+  .chip.ok{color:#a9edc8;border-color:rgba(63,214,138,.3);background:rgba(63,214,138,.09)}
+  .chip.bad{color:#ffc4c0;border-color:rgba(255,95,86,.3);background:rgba(255,95,86,.09)}
+  .chip.warn{color:#ffe1ae;border-color:rgba(255,200,97,.3);background:rgba(255,200,97,.09)}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(63,214,138,.16)}
+  .dot.bad{background:var(--bad);box-shadow:0 0 0 3px rgba(255,95,86,.16)}
 
   /* sections & cards */
   section{
-    position:relative;margin:16px 0;padding:20px;
+    position:relative;margin:18px 0;padding:22px;counter-increment:sec;
     background:var(--panel);border:1px solid var(--line);border-radius:var(--r);
     box-shadow:var(--shadow);
-    backdrop-filter:blur(10px);
-    animation:rise .45s cubic-bezier(.2,.7,.25,1) both;
+    animation:rise .5s cubic-bezier(.2,.7,.25,1) both;
   }
+  section::after{
+    content:counter(sec,decimal-leading-zero);
+    position:absolute;top:20px;right:22px;pointer-events:none;
+    font-family:var(--font-mono);font-size:10px;letter-spacing:.16em;color:rgba(255,255,255,.2);
+  }
+  section:nth-of-type(1){animation-delay:.02s}
+  section:nth-of-type(2){animation-delay:.07s}
+  section:nth-of-type(3){animation-delay:.12s}
+  section:nth-of-type(4){animation-delay:.17s}
+  section:nth-of-type(5){animation-delay:.22s}
+  section:nth-of-type(6){animation-delay:.27s}
   @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
-  .shead{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .shead{display:flex;align-items:center;gap:11px;margin-bottom:16px;padding-right:34px}
   .shead .ico{
-    width:30px;height:30px;flex:none;border-radius:9px;display:grid;place-items:center;
-    background:linear-gradient(140deg,rgba(109,140,255,.18),rgba(55,224,201,.12));
-    border:1px solid var(--line);color:#c7d4ff;
+    width:31px;height:31px;flex:none;border-radius:8px;display:grid;place-items:center;
+    background:rgba(255,255,255,.035);border:1px solid var(--line-2);color:#e8d6b6;
   }
-  .shead h2{font-size:14.5px}
-  .shead p{margin:1px 0 0;color:var(--dim);font-size:12px}
+  .shead h2{font-family:var(--font-display);font-size:15.5px;letter-spacing:.02em}
+  .shead p{margin:3px 0 0;color:var(--dim);font-size:11.5px;letter-spacing:.01em}
   .rowline{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .muted{color:var(--muted)}
   .dim{color:var(--dim)}
   .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)}
-  .sep{height:1px;background:var(--line);margin:14px 0}
+  .sep{height:1px;background:var(--line);margin:16px 0}
 
   /* hero: 快速接入 */
   section.hero{
-    padding:22px;border:1px solid transparent;
+    padding:24px;
     background:
-      linear-gradient(var(--panel),var(--panel)) padding-box,
-      linear-gradient(135deg,rgba(109,140,255,.75),rgba(55,224,201,.5) 45%,rgba(109,140,255,.15)) border-box;
-    box-shadow:0 30px 70px -34px rgba(74,110,255,.55);
+      linear-gradient(180deg,rgba(255,176,32,.055),rgba(255,176,32,0) 46%),
+      var(--panel);
+    border-color:rgba(255,176,32,.22);
+    box-shadow:0 0 0 1px rgba(255,176,32,.05),0 30px 64px -40px rgba(255,176,32,.4);
+  }
+  /* 四角刻度：仪表盘边框细节 */
+  section.hero::before{
+    content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;opacity:.6;
+    background:
+      linear-gradient(90deg,var(--accent),transparent) left top/56px 1px no-repeat,
+      linear-gradient(180deg,var(--accent),transparent) left top/1px 40px no-repeat,
+      linear-gradient(270deg,var(--accent),transparent) right bottom/56px 1px no-repeat,
+      linear-gradient(0deg,var(--accent),transparent) right bottom/1px 40px no-repeat;
   }
   .endpoint{
-    display:flex;align-items:center;gap:10px;flex-wrap:wrap;
-    padding:11px 12px;margin:8px 0;border-radius:var(--r-sm);
-    background:rgba(9,13,20,.55);border:1px solid var(--line);
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:11px 13px;margin:8px 0;border-radius:var(--r-sm);
+    background:rgba(255,255,255,.022);border:1px solid var(--line);
+    border-left:2px solid rgba(255,176,32,.22);
+    transition:background .15s ease,border-color .15s ease;
   }
-  .endpoint .lbl{display:flex;flex-direction:column;min-width:172px}
-  .endpoint .lbl b{font-size:13px}
-  .endpoint .lbl span{color:var(--dim);font-size:11.5px}
+  .endpoint:hover{background:rgba(255,255,255,.04);border-left-color:rgba(255,176,32,.55)}
+  .endpoint .lbl{display:flex;flex-direction:column;min-width:168px}
+  .endpoint .lbl b{font-size:12.5px;font-weight:600}
+  .endpoint .lbl span{color:var(--dim);font-size:10.5px;font-family:var(--font-mono)}
   .endpoint code{
     flex:1 1 220px;min-width:0;overflow:auto;white-space:nowrap;
-    padding:7px 10px;border-radius:8px;background:rgba(2,4,8,.6);
-    border:1px solid var(--line);color:#cfe0ff;
+    padding:7px 10px;border-radius:6px;background:#07080a;
+    border:1px solid rgba(255,255,255,.06);color:#eae4d7;
   }
-  .models{margin-top:14px}
-  .models .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:9px}
+  /* 快速接入 · 可用模型（smart 置顶；点名=设为 smart，点图标=只复制） */
+  .models{margin-top:18px;padding-top:16px;border-top:1px solid var(--line)}
+  .models .mhead{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .models .mhead .t{
+    font-family:var(--font-mono);font-size:10.5px;font-weight:600;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--muted);
+  }
+  .models .mhead .hint{color:var(--dim);font-size:11.5px}
+  .models .mchips{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px;max-height:184px;overflow:auto;padding-right:2px}
   .mchip{
-    display:inline-flex;align-items:center;gap:6px;cursor:pointer;
-    padding:5px 10px;border-radius:8px;font-size:12px;
-    background:rgba(109,140,255,.10);border:1px solid rgba(109,140,255,.26);color:#cbd8ff;
-    transition:transform .12s ease,background .15s ease,border-color .15s ease;
+    display:inline-flex;align-items:center;gap:2px;max-width:100%;
+    padding:3px 4px 3px 9px;border-radius:6px;font-size:12px;
+    background:rgba(255,255,255,.035);border:1px solid var(--line);color:var(--muted);
+    transition:background .15s ease,border-color .15s ease;
   }
-  .mchip:hover{transform:translateY(-1px);background:rgba(109,140,255,.18);border-color:rgba(109,140,255,.45)}
-  .mchip:active{transform:none}
-  .mchip svg{opacity:.7}
+  .mchip:hover{background:rgba(255,255,255,.07);border-color:var(--line-2)}
+  .mchip .mname{
+    padding:0;border:0;background:none;color:var(--text);font-weight:500;
+    font-family:var(--font-mono);font-size:11.5px;
+    max-width:230px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    cursor:pointer;border-radius:4px;text-align:left;
+  }
+  .mchip button.mname:hover{background:none;border-color:transparent;transform:none;color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+  .mchip .mcopy{
+    flex:none;padding:3px;border:0;background:none;color:var(--dim);
+    border-radius:5px;font-size:12px;cursor:pointer;
+  }
+  .mchip .mcopy:hover{background:rgba(255,255,255,.10);border-color:transparent;transform:none;color:var(--text)}
+  .mchip svg{pointer-events:none;opacity:.9}
+  .mchip button:focus-visible{outline:2px solid rgba(255,176,32,.8);outline-offset:2px}
+  .mchip.pat .mname{color:var(--dim);cursor:default}
+  .mchip.smart{
+    padding:3px 4px 3px 10px;
+    background:linear-gradient(135deg,rgba(255,176,32,.16),rgba(255,138,61,.07));
+    border-color:rgba(255,176,32,.4);
+  }
+  .mchip.smart .mname{color:#ffd99a;cursor:default;max-width:none;font-weight:600;letter-spacing:.02em}
+  .mchip.smart .mmap{
+    color:#a2977f;font-size:10.5px;max-width:240px;font-family:var(--font-mono);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .mchip.smart .mmap b{color:#9ff0c4;font-weight:600}
+  .mchip.smart.unset{border-style:dashed;border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.03)}
 
   /* buttons */
   button,.btn{
-    display:inline-flex;align-items:center;gap:7px;
-    padding:8px 13px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:550;
-    color:var(--text);background:var(--panel-2);border:1px solid var(--line);
-    transition:transform .12s ease,background .15s ease,border-color .15s ease,box-shadow .15s ease;
-    font-family:inherit;
+    display:inline-flex;align-items:center;gap:6px;
+    padding:7px 12px;border-radius:7px;cursor:pointer;font-size:12.5px;font-weight:600;
+    color:var(--text);background:rgba(255,255,255,.04);border:1px solid var(--line);
+    transition:background .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease;
+    font-family:inherit;white-space:nowrap;
   }
-  button:hover,.btn:hover{background:rgba(148,163,184,.14);border-color:var(--line-2);transform:translateY(-1px)}
-  button:active,.btn:active{transform:none}
+  button:hover,.btn:hover{background:rgba(255,255,255,.08);border-color:var(--line-2)}
+  button:focus-visible,.btn:focus-visible,input:focus-visible,select:focus-visible{
+    outline:2px solid rgba(255,176,32,.8);outline-offset:2px;
+  }
   button.primary{
-    background:linear-gradient(135deg,#5b7cff,#37cfc0);border-color:transparent;color:#04121a;
-    box-shadow:0 12px 26px -14px rgba(91,124,255,.95);font-weight:650;
+    background:var(--accent);border-color:transparent;color:#1c1203;
+    box-shadow:0 10px 26px -18px rgba(255,176,32,.95);
   }
-  button.primary:hover{filter:brightness(1.06)}
+  button.primary:hover{background:#ffc046}
   button.ghost{background:transparent}
-  button.danger{color:#ffb9b9;border-color:rgba(255,107,107,.28);background:rgba(255,107,107,.09)}
-  button.danger:hover{background:rgba(255,107,107,.18)}
-  button.sm{padding:5px 9px;font-size:12px;border-radius:8px}
+  button.danger{color:#ffb6b1;border-color:rgba(255,95,86,.3);background:rgba(255,95,86,.08)}
+  button.danger:hover{background:rgba(255,95,86,.16)}
+  button.sm{padding:4px 8px;font-size:11.5px;border-radius:6px;gap:5px}
   button.link{padding:2px 4px;background:none;border:none;color:var(--accent)}
+  button:disabled{opacity:.45;cursor:default}
+  button:disabled:hover{background:rgba(255,255,255,.04);border-color:var(--line)}
 
   /* inputs */
   input,select{
-    padding:8px 11px;border-radius:9px;font-size:13px;font-family:inherit;
-    background:rgba(6,9,14,.66);color:var(--text);border:1px solid var(--line);
+    padding:7px 10px;border-radius:7px;font-size:12.5px;font-family:inherit;
+    background:#07080a;color:var(--text);border:1px solid var(--line);
     transition:border-color .15s ease,box-shadow .15s ease;
   }
-  input:focus,select:focus{outline:none;border-color:rgba(109,140,255,.6);box-shadow:0 0 0 3px rgba(109,140,255,.16)}
+  input:focus,select:focus{outline:none;border-color:rgba(255,176,32,.65);box-shadow:0 0 0 3px rgba(255,176,32,.13)}
   input::placeholder{color:var(--dim)}
-  label.check{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:13px;cursor:pointer}
-  input[type=checkbox]{width:16px;height:16px;accent-color:#5b7cff;padding:0}
+  label.check{display:inline-flex;align-items:center;gap:8px;color:var(--muted);font-size:12.5px;cursor:pointer}
+  input[type=checkbox]{width:15px;height:15px;accent-color:var(--accent);padding:0}
 
-  /* stat tiles */
-  .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
-  .tile{
-    padding:13px 14px;border-radius:var(--r-sm);
-    background:rgba(9,13,20,.55);border:1px solid var(--line);
+  /* stat tiles —— 用 1px 缝隙拼成分格仪表 */
+  .tiles{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;
+    background:var(--line);border:1px solid var(--line);border-radius:var(--r-sm);overflow:hidden;
   }
-  .tile .k{color:var(--dim);font-size:11.5px;letter-spacing:.3px;text-transform:uppercase}
-  .tile .v{font-size:22px;font-weight:680;margin-top:3px;font-variant-numeric:tabular-nums}
-  .tile .s{color:var(--dim);font-size:11.5px}
-  .bars{margin-top:12px;display:flex;flex-direction:column;gap:7px}
-  .bar{display:flex;align-items:center;gap:10px;font-size:12px}
-  .bar .nm{min-width:120px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .bar .track{flex:1;height:7px;border-radius:99px;background:rgba(148,163,184,.12);overflow:hidden}
-  .bar .fill{height:100%;border-radius:99px;background:linear-gradient(90deg,#5b7cff,#37cfc0)}
-  .bar .num{color:var(--dim);font-variant-numeric:tabular-nums;min-width:96px;text-align:right}
+  .tile{padding:14px 15px;background:var(--panel)}
+  .tile .k{
+    color:var(--dim);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+    font-family:var(--font-mono);
+  }
+  .tile .v{
+    font-family:var(--font-display);font-size:25px;font-weight:600;margin-top:5px;
+    font-variant-numeric:tabular-nums;letter-spacing:-.01em;
+  }
+  .tile .s{color:var(--dim);font-size:10.5px;font-family:var(--font-mono);margin-top:1px}
+  .bars{margin-top:14px;display:flex;flex-direction:column;gap:8px}
+  .bar{display:flex;align-items:center;gap:10px;font-size:11.5px}
+  .bar .nm{
+    min-width:118px;max-width:160px;color:var(--muted);font-family:var(--font-mono);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .bar .track{flex:1;height:5px;border-radius:99px;background:rgba(255,255,255,.06);overflow:hidden}
+  .bar .fill{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--accent-2),var(--accent))}
+  .bar .num{color:var(--dim);font-variant-numeric:tabular-nums;min-width:96px;text-align:right;font-family:var(--font-mono)}
 
   /* tables */
-  .tblwrap{overflow:auto;border:1px solid var(--line);border-radius:var(--r-sm);background:rgba(9,13,20,.4)}
+  .tblwrap{overflow:auto;border:1px solid var(--line);border-radius:var(--r-sm);background:rgba(255,255,255,.012)}
   table{border-collapse:collapse;width:100%;min-width:560px}
-  th,td{padding:10px 12px;text-align:left;font-size:12.5px;border-bottom:1px solid var(--line);vertical-align:middle}
-  th{background:rgba(148,163,184,.06);color:var(--dim);font-weight:600;font-size:11px;letter-spacing:.6px;text-transform:uppercase;white-space:nowrap}
-  tbody tr:hover{background:rgba(109,140,255,.06)}
+  th,td{padding:9px 12px;text-align:left;font-size:12px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{
+    background:rgba(255,255,255,.025);color:var(--dim);font-weight:600;font-size:10px;
+    letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;font-family:var(--font-mono);
+  }
+  tbody tr{transition:background .12s ease}
+  tbody tr:hover{background:rgba(255,176,32,.045)}
   tbody tr:last-child td{border-bottom:none}
-  td code{color:#cfe0ff}
+  td code{color:#e7e1d4;font-size:11.5px}
 
   /* details / 添加渠道 */
-  details.sect{margin-top:14px;border:1px dashed var(--line-2);border-radius:var(--r-sm);padding:0 14px;background:rgba(9,13,20,.32)}
-  details.sect[open]{padding-bottom:14px;border-style:solid}
+  details.sect{
+    margin-top:16px;padding:0 14px;border-radius:var(--r-sm);
+    border:1px solid var(--line);background:rgba(255,255,255,.014);
+  }
+  details.sect[open]{padding-bottom:14px;border-color:var(--line-2);background:rgba(255,255,255,.025)}
   details.sect>summary{
-    cursor:pointer;padding:12px 0;color:var(--muted);font-size:13px;font-weight:600;
+    cursor:pointer;padding:12px 0;color:var(--muted);font-size:12.5px;font-weight:600;
     list-style:none;display:flex;align-items:center;gap:8px;
   }
   details.sect>summary::-webkit-details-marker{display:none}
-  details.sect>summary::before{content:"＋";color:var(--accent);font-weight:700}
+  details.sect>summary::before{
+    content:"＋";color:var(--accent);font-weight:700;font-family:var(--font-mono);
+    width:14px;text-align:center;
+  }
   details.sect[open]>summary::before{content:"－"}
-  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
-  .grid label{display:flex;flex-direction:column;gap:5px;font-size:12px;color:var(--dim)}
+  details.sect>summary:hover{color:var(--text)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:11px}
+  .grid label{
+    display:flex;flex-direction:column;gap:5px;font-size:11px;color:var(--dim);
+    font-family:var(--font-mono);letter-spacing:.04em;
+  }
   .grid input,.grid select{width:100%}
-  .settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:18px}
-  .settings h3{font-size:12.5px;color:var(--muted);margin-bottom:9px;letter-spacing:.3px}
-  .note{font-size:12px;color:var(--dim);margin-top:8px}
+  .settings{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:22px}
+  .settings h3{
+    margin:0 0 9px;font-size:10px;font-weight:600;color:var(--dim);
+    letter-spacing:.14em;text-transform:uppercase;font-family:var(--font-mono);
+  }
+  .note{font-size:11.5px;color:var(--dim);margin-top:8px;line-height:1.6}
+  .note code{color:#e7e1d4;background:rgba(255,255,255,.04);padding:1px 4px;border-radius:4px}
 
   /* toast */
   #brg-toast{
     position:fixed;left:50%;bottom:26px;transform:translate(-50%,14px);
     z-index:99;max-width:min(88vw,560px);
-    padding:11px 16px;border-radius:12px;font-size:13px;
-    background:rgba(14,19,28,.94);border:1px solid var(--line-2);color:var(--text);
+    padding:11px 16px;border-radius:8px;font-size:12.5px;
+    background:rgba(18,20,25,.96);border:1px solid var(--line-2);color:var(--text);
+    border-left:2px solid var(--accent);
     box-shadow:0 22px 60px -22px rgba(0,0,0,.95);
     backdrop-filter:blur(12px);
     opacity:0;pointer-events:none;transition:opacity .2s ease,transform .2s ease;
     display:flex;align-items:center;gap:9px;
   }
+  #brg-toast.bad{border-left-color:var(--bad)}
   #brg-toast.show{opacity:1;transform:translate(-50%,0)}
 
   /* gate */
   .gatewrap{min-height:100dvh;display:grid;place-items:center;padding:26px}
   .card{
-    width:100%;max-width:430px;padding:30px 28px;border-radius:20px;
-    background:linear-gradient(180deg,rgba(20,26,37,.92),rgba(12,16,24,.92));
-    border:1px solid var(--line-2);box-shadow:0 40px 90px -40px rgba(0,0,0,.95);
+    position:relative;width:100%;max-width:430px;padding:30px 28px;border-radius:14px;
+    background:linear-gradient(180deg,rgba(24,27,33,.96),rgba(14,16,20,.96));
+    border:1px solid var(--line-2);
+    box-shadow:0 40px 90px -40px rgba(0,0,0,.95),0 0 0 1px rgba(255,176,32,.05);
     backdrop-filter:blur(14px);animation:rise .5s cubic-bezier(.2,.7,.25,1) both;
   }
-  .card .mark{width:46px;height:46px;border-radius:14px;margin-bottom:16px}
-  .card h1{font-size:19px;margin-bottom:8px}
+  /* 卡片顶沿的一道琥珀信号线 */
+  .card::before{
+    content:"";position:absolute;left:24px;right:24px;top:-1px;height:1px;pointer-events:none;
+    background:linear-gradient(90deg,transparent,var(--accent),transparent);opacity:.8;
+  }
+  .card .mark{width:46px;height:46px;border-radius:12px;margin-bottom:16px}
+  .card h1{font-family:var(--font-display);font-size:19px;letter-spacing:.03em;margin-bottom:8px}
   .card p{color:var(--muted);font-size:12.8px;margin:0 0 16px}
   .card .field{width:100%;margin:0 0 10px;padding:11px 13px;font-size:14px}
-  .card button.primary{width:100%;justify-content:center;padding:11px;font-size:14px;margin-top:6px}
-  .card .foot{color:var(--dim);font-size:12px;margin-top:14px}
+  .card button.primary{width:100%;justify-content:center;padding:11px;font-size:13.5px;margin-top:6px}
+  .card .foot{color:var(--dim);font-size:11.5px;margin-top:14px;font-family:var(--font-mono)}
   .banner-warn{
-    display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:10px;font-size:12.5px;
-    background:rgba(255,200,97,.10);border:1px solid rgba(255,200,97,.28);color:#ffe6b8;margin-bottom:14px;
+    display:flex;gap:9px;align-items:flex-start;padding:10px 12px;border-radius:var(--r-sm);
+    font-size:12px;line-height:1.55;
+    background:rgba(255,200,97,.09);border:1px solid rgba(255,200,97,.26);color:#ffe6b8;margin-bottom:14px;
   }
-  .spin{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.22);border-top-color:#9fb4ff;animation:sp .8s linear infinite;display:inline-block}
+  .spin{width:14px;height:14px;border-radius:50%;border:2px solid rgba(255,255,255,.16);border-top-color:var(--accent);animation:sp .8s linear infinite;display:inline-block}
   @keyframes sp{to{transform:rotate(360deg)}}
-  .skel{height:12px;border-radius:6px;background:linear-gradient(90deg,rgba(148,163,184,.10),rgba(148,163,184,.2),rgba(148,163,184,.10));background-size:200% 100%;animation:sk 1.2s linear infinite}
+  .skel{height:12px;border-radius:6px;background:linear-gradient(90deg,rgba(255,255,255,.05),rgba(255,255,255,.11),rgba(255,255,255,.05));background-size:200% 100%;animation:sk 1.2s linear infinite}
   @keyframes sk{to{background-position:-200% 0}}
 
   @media (max-width:640px){
-    .topbar{padding:10px 14px}
+    .topbar{padding:10px 14px;gap:7px}
+    .brand small{display:none}
     .wrap{padding:14px 14px 48px}
-    section{padding:16px;border-radius:14px}
+    section{padding:16px;border-radius:10px}
+    section::after{top:14px;right:16px}
+    .shead{padding-right:26px}
     .endpoint code{flex-basis:100%}
     .endpoint .lbl{min-width:0}
+    .endpoint .lbl span{display:none}
+    .tiles{grid-template-columns:repeat(2,1fr)}
     table{min-width:520px}
+    footer{padding:12px 14px 40px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important}
   }
 </style>
 </head><body>
@@ -267,7 +393,7 @@
     <div class="brand">
       <span class="mark">
         <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="url(#lg)" stroke-width="2.1" stroke-linecap="round">
-          <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6d8cff"/><stop offset="1" stop-color="#37e0c9"/></linearGradient></defs>
+          <defs><linearGradient id="lg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb020"/><stop offset="1" stop-color="#ff8a3d"/></linearGradient></defs>
           <path d="M4 20h16M8 4v16M16 4v16"/>
         </svg>
       </span>
@@ -352,7 +478,7 @@
       <div id="dkeys"></div>
       <div class="rowline" style="margin-top:12px;flex-wrap:wrap">
         <span class="dim" style="align-self:center">Codex 模型名</span>
-        <input id="codex_model" placeholder="gpt-5.1-codex" style="width:200px">
+        <input id="codex_model" placeholder="smart" title="默认 smart：Codex 固定请求 smart，真实模型在「快速接入 → 可用模型」里换" style="width:200px">
         <button class="sm" onclick="setCodexModel()">保存到 Codex 配置</button>
       </div>
       <div class="rowline" style="margin-top:14px">
@@ -445,6 +571,7 @@ const ICON = {
   eye:   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="2.6"/></svg>',
   eyeOff:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3l18 18M10.6 6.2A9.9 9.9 0 0 1 12 6c6.5 0 10 6 10 6a17 17 0 0 1-3 3.6M6.3 8.3A17 17 0 0 0 2 12s3.5 6 10 6c1.2 0 2.3-.2 3.3-.5"/></svg>',
   pulse: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 12h4l2-6 3 12 2-6h7"/></svg>',
+  refresh:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M20 12a8 8 0 1 1-2.3-5.7M20 4v5h-5"/></svg>',
   trash: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>',
   power: '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 4v8M7.5 6.5a7 7 0 1 0 9 0"/></svg>',
 };
@@ -457,6 +584,7 @@ function toast(msg, kind){
   if (!t){ t = document.createElement('div'); t.id='brg-toast'; document.body.appendChild(t); }
   t.innerHTML = (kind==='bad' ? '<span class="bad">✕</span>' : '<span class="ok">✓</span>') + '<span></span>';
   t.lastElementChild.textContent = msg;
+  t.classList.toggle('bad', kind==='bad');
   t.classList.add('show');
   clearTimeout(toastTimer); toastTimer = setTimeout(()=>{ t.classList.remove('show'); }, 2400);
 }
@@ -501,7 +629,7 @@ async function boot(){
 
 function markSvg(sz){
   return `<svg width="${sz}" height="${sz}" viewBox="0 0 24 24" fill="none" stroke="url(#lg2)" stroke-width="2.1" stroke-linecap="round">
-    <defs><linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6d8cff"/><stop offset="1" stop-color="#37e0c9"/></linearGradient></defs>
+    <defs><linearGradient id="lg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb020"/><stop offset="1" stop-color="#ff8a3d"/></linearGradient></defs>
     <path d="M4 20h16M8 4v16M16 4v16"/></svg>`;
 }
 
@@ -639,7 +767,8 @@ async function refresh(){
       ,'<div class="dim" style="padding:6px 2px">暂无 Key —— 点下面「生成新 Key」。</div>');
 
     const cmInput = document.getElementById('codex_model');
-    if (document.activeElement !== cmInput) cmInput.value = dks.codex_model || '';
+    // 空 = 用默认 smart，输入框里直接把生效值显示出来，避免误以为没配
+    if (document.activeElement !== cmInput) cmInput.value = dks.codex_model || 'smart';
 
     document.getElementById('recent').innerHTML = table(
       ['时间','模型','渠道','状态','首字','tokens','错误'],
@@ -672,17 +801,79 @@ function regCopy(text){ copyBag.push(text); return copyBag.length - 1; }
 function copyBagFn(i){ copyTextRaw(copyBag[i]); }
 function cpyBtn(id, label){ return `<button class="sm" onclick="copyBagFn(${id})">${ICON.copy}${label}</button>`; }
 
-let lastModels = [];
-let lastFirstKey = '';
+let pickBag = [];               // id -> raw model name (chip click = point smart here)
+function regPick(m){ pickBag.push(m); return pickBag.length - 1; }
+function pickBagFn(i){ setSmartTarget(pickBag[i]); }
+
+let lastModels = [];            // model patterns configured on channels
+let lastDks = null;             // last /admin/dkeys payload (holds smart_model)
+let upstreamModels = [];        // discovered from each channel's /models (best effort)
+let upstreamAt = 0;
+let upstreamBusy = false;
+
 function epRow(label, hint, url){
   return `<div class="endpoint">
     <span class="lbl"><b>${label}</b><span>${hint}</span></span>
     <code>${h(url)}</code>
     ${cpyBtn(regCopy(url), '复制')}</div>`;
 }
+
+/* smart 目标候选：渠道里配置的 pattern + 上游实际可用的模型，去重 */
+function mergedModels(){
+  const seen = new Set(['smart']);
+  const out = [];
+  for (const m of [...lastModels, ...upstreamModels]){
+    if (!m || seen.has(m)) continue;
+    seen.add(m); out.push(m);
+  }
+  return out;
+}
+
+function modelsHTML(){
+  const cur = (lastDks && lastDks.smart_model) || '';
+  const list = mergedModels();
+  const smartChip = `<div class="mchip smart${cur ? '' : ' unset'}">
+      <span class="mname">smart</span>
+      <span class="mmap">${cur ? '→ <b>' + h(cur) + '</b>' : '未设置 · 点下方模型名'}</span>
+      <button class="mcopy" title="复制模型名 smart（客户端就写这个）" aria-label="复制模型名 smart"
+        onclick="copyBagFn(${regCopy('smart')})">${ICON.copy}</button>
+    </div>`;
+  const chips = list.map(m => m.includes('*')
+    /* 渠道通配符不是真实模型：只给复制，不参与 smart 选择 */
+    ? `<div class="mchip pat">
+        <span class="mname" title="渠道通配符，只能复制">${h(m)}</span>
+        <button class="mcopy" title="复制 ${h(m)}" aria-label="复制模型名 ${h(m)}"
+          onclick="copyBagFn(${regCopy(m)})">${ICON.copy}</button>
+      </div>`
+    : `<div class="mchip">
+        <button class="mname" title="把 smart 指向 ${h(m)}" onclick="pickBagFn(${regPick(m)})">${h(m)}</button>
+        <button class="mcopy" title="复制 ${h(m)}" aria-label="复制模型名 ${h(m)}"
+          onclick="copyBagFn(${regCopy(m)})">${ICON.copy}</button>
+      </div>`).join('');
+  const all = ['smart', ...list].join(', ');
+  return `<div class="mhead">
+      <span class="t">可用模型</span>
+      <span class="hint">点模型名 = 设为 smart 目标；点复制图标 = 只复制名称</span>
+      <span class="spacer"></span>
+      <button class="sm ghost" onclick="loadUpstreamModels(true)" ${upstreamBusy ? 'disabled' : ''}
+        aria-label="从已接入渠道重新拉取模型列表">${ICON.refresh}${upstreamBusy ? '拉取中…' : '拉取上游模型'}</button>
+    </div>
+    <div class="mchips">
+      ${smartChip}
+      ${chips || '<span class="dim">添加渠道后这里会出现模型</span>'}
+      ${list.length ? `<button class="sm" style="margin-left:2px" onclick="copyBagFn(${regCopy(all)})">${ICON.copy}复制全部</button>` : ''}
+    </div>
+    ${upstreamModels.length ? `<div class="note">已从上游渠道拉取到 ${upstreamModels.length} 个可用模型</div>` : ''}`;
+}
+
+function renderModels(){
+  const box = document.getElementById('models_box');
+  if (box) box.innerHTML = modelsHTML();
+}
+
 async function renderConnect(st, dks){
+  lastDks = dks || null;
   const anyKey = (dks.keys || []).find(k=>k.enabled) || (dks.keys||[])[0];
-  lastFirstKey = anyKey ? anyKey.key : '';
   let models = [];
   try{ const mj = await (await jget('models')).json(); models = (mj.models||[]).map(m=>m.model); }catch(e){ models = []; }
   lastModels = models;
@@ -698,17 +889,39 @@ async function renderConnect(st, dks){
        <span class="lbl"><b>下游 API Key</b><span>当密码用，别外发</span></span>
        <code>${h(anyKey ? (revealKeys.has(anyKey.key) ? anyKey.key : anyKey.key_masked) : '（先到下面「下游私有 Key」生成一个）')}</code>
        ${anyKey ? cpyBtn(regCopy(anyKey.key), '复制 Key') : ''}</div>`,
-    `<div class="models">
-       <b style="font-size:13px">可用模型</b>
-       <span class="dim" style="font-size:12px">· 点一下即复制</span>
-       <div class="chips">
-       ${models.length
-          ? models.map(m=>`<span class="mchip" onclick="copyBagFn(${regCopy(m)})">${ICON.copy}${h(m)}</span>`).join('')
-          : '<span class="dim">添加渠道后这里会出现模型</span>'}
-       ${models.length ? `<button class="sm" style="margin-left:2px" onclick="copyBagFn(${regCopy(models.join(', '))})">${ICON.copy}复制全部</button>` : ''}
-       </div></div>`
+    `<div class="models" id="models_box">${modelsHTML()}</div>`
   ].join('');
   document.getElementById('connect').innerHTML = html;
+  loadUpstreamModels(false);          // 后台静默补全，失败就不显示
+}
+
+/* 按已接入渠道的 Key 拉上游 /models；60s 内不重复自动拉，失败静默 */
+async function loadUpstreamModels(force){
+  if (upstreamBusy) return;
+  if (!force && Date.now() - upstreamAt < 60000) return;
+  upstreamBusy = true;
+  renderModels();
+  let got = [];
+  try{
+    const j = await jpost('fetch_models');
+    if (j && j.ok && Array.isArray(j.models)) got = j.models;
+  }catch(e){ got = []; }
+  upstreamBusy = false;
+  upstreamAt = Date.now();
+  upstreamModels = got;
+  renderModels();
+  if (force && !got.length) toast('上游没有返回模型（渠道可能不支持 /models，或 Key 无权限）', 'bad');
+}
+
+/* 点模型名 = 把 smart 指向它；客户端始终只写 model:"smart" */
+async function setSmartTarget(m){
+  try{
+    const j = await jpost('set_smart_model', {arg: m || ''});
+    if (!j.ok){ toast('失败：' + (j.error||''), 'bad'); return; }
+    if (lastDks) lastDks.smart_model = m || '';
+    toast(m ? `smart → ${m} 已生效` : '已停用 smart 别名');
+    renderModels();
+  }catch(e){ toast(String(e), 'bad'); }
 }
 async function copyTextRaw(s){
   try{

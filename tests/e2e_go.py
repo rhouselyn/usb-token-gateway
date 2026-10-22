@@ -323,6 +323,15 @@ def main():
         ids = [m.get("id") for m in r.get("data", [])]
         check("models endpoint", code == 200 and any(m == "gpt-*" for m in ids) and any(m.startswith("claude") for m in ids), r)
 
+        # upstream model discovery (panel quick-connect): each channel asks its
+        # own /models with its own key; ids the channel cannot route are dropped
+        code, r = http("POST", f"{base}/admin/cmd", {"action": "fetch_models"}, adm)
+        found = r.get("models") or []
+        check("fetch_models discovers upstream models",
+              code == 200 and r.get("ok") and "gpt-mock-discovered" in found and "claude-3-5-mock" in found, r)
+        check("fetch_models keeps only routable ids",
+              "not-allowed-model" not in found and "smart" not in found, r)
+
         # chat non-stream via openai channel
         code, r = http("POST", f"{base}/v1/chat/completions", {
             "model": "gpt-mock", "max_tokens": 50,
@@ -495,6 +504,7 @@ def main():
         check("codex auth.json written with selected key", okj.get("OPENAI_API_KEY") == dk, okj)
         check("codex config.toml written",
               f"127.0.0.1:{PORT_GATEWAY}" in toml and 'wire_api = "responses"' in toml, toml)
+        check("codex default model is smart", 'model = "smart"' in toml, toml)
         code, r = http("POST", f"{base}/admin/cmd", {"action": "set_codex_model", "arg": "gpt-5.7-test"}, adm)
         toml = open(cfg_toml, encoding="utf-8").read()
         check("codex model sync", r.get("ok") and 'model = "gpt-5.7-test"' in toml, toml)
@@ -530,6 +540,39 @@ def main():
         # embeddings through the openai-protocol channel (model matches its patterns)
         code, r = http("POST", f"{base}/v1/embeddings", {"model": "gpt-embed-3", "input": "hi"}, auth)
         check("embeddings", code == 200 and r.get("data"), (code, r))
+
+        # ----------------------------------------------- smart model alias
+        code, r = http("GET", f"{base}/v1/models", None, auth)
+        check("smart hidden while unmapped", "smart" not in [m["id"] for m in r.get("data", [])], r)
+        code, r = http("POST", f"{base}/v1/chat/completions", {
+            "model": "smart", "max_tokens": 5,
+            "messages": [{"role": "user", "content": "x"}],
+        }, auth)
+        check("smart unmapped -> 503", code == 503, (code, r))
+        code, r = http("POST", f"{base}/admin/cmd",
+                       {"action": "set_smart_model", "arg": "gpt-smart-target"}, adm)
+        check("set_smart_model", r.get("ok") and r.get("smart_model") == "gpt-smart-target", r)
+        code, r = http("GET", f"{base}/admin/dkeys", headers=adm)
+        check("smart_model exposed to panel", r.get("smart_model") == "gpt-smart-target", r)
+        code, r = http("POST", f"{base}/v1/chat/completions", {
+            "model": "smart", "max_tokens": 30,
+            "messages": [{"role": "user", "content": "route me"}],
+        }, auth)
+        txt = r.get("choices", [{}])[0].get("message", {}).get("content", "")
+        check("smart rewrites to real model upstream", code == 200 and "echo-openai[gpt-smart-target]" in txt, (code, r))
+        code, r = http("POST", f"{base}/v1/chat/completions", {
+            "model": "SMART", "max_tokens": 30, "stream": True,
+            "messages": [{"role": "user", "content": "stream route"}],
+        }, auth, raw=True)
+        text = r.decode(errors="replace") if isinstance(r, bytes) else str(r)
+        check("smart stream (case-insensitive)",
+              code == 200 and "echo-openai[gpt-smart-target]" in sse_contents(text), (code, text[:200]))
+        code, r = http("GET", f"{base}/v1/models", None, auth)
+        check("smart advertised once mapped", "smart" in [m["id"] for m in r.get("data", [])], r)
+        code, r = http("POST", f"{base}/v1/embeddings", {"model": "smart", "input": "hi"}, auth)
+        check("smart embeddings routed", code == 200 and r.get("data"), (code, r))
+        code, r = http("POST", f"{base}/admin/cmd", {"action": "set_smart_model", "arg": ""}, adm)
+        check("smart cleared", r.get("ok") and r.get("smart_model") == "", r)
 
         # test_channel (admin probe)
         code, r = http("POST", f"{base}/admin/cmd", {"action": "test_channel", "arg": oid}, adm)

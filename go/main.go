@@ -122,6 +122,10 @@ func main() {
 	endpoint = fmt.Sprintf("http://127.0.0.1:%d", port)
 	fmt.Printf("[bridge] listening on %s\n", endpoint)
 
+	// The gateway runs FROM the USB stick: once the stick is gone the session
+	// is over (vault stays decrypted in memory, but nothing can be saved).
+	go startUSBGuard(b)
+
 	// Locked-at-boot flow (user spec):
 	//   remembered device  -> silent unlock -> PROBE -> bubble "started"; NO browser
 	//   never logged in    -> open the panel for password entry (new host)

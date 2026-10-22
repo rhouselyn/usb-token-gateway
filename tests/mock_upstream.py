@@ -175,6 +175,23 @@ class MockUpstream(BaseHTTPRequestHandler):
             self.wfile.write(payload)
 
     def do_GET(self):
+        p = self.path.split("?")[0]
+        if p.endswith("/models"):
+            payload = json.dumps(
+                {
+                    "object": "list",
+                    "data": [
+                        {"id": m, "object": "model"}
+                        for m in ("gpt-mock-discovered", "claude-3-5-mock", "not-allowed-model", "smart")
+                    ],
+                }
+            ).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         self.do_POST()
 
     def log_message(self, fmt, *args):

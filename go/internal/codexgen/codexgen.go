@@ -20,7 +20,10 @@ import (
 func Home(dataDir string) string { return filepath.Join(dataDir, "codex") }
 
 // DefaultModel is written into config.toml when the panel has no override.
-const DefaultModel = "gpt-5.1-codex"
+// It is the smart alias: Codex always asks for "smart" and the panel decides
+// which real model (and channel) serves it, so the USB stick never has to be
+// reconfigured when the upstream model changes.
+const DefaultModel = vault.SmartAlias
 
 // Sync rewrites auth.json + config.toml.  With no selected+enabled key,
 // auth.json is REMOVED so a stale key never leaks into Codex (config.toml is

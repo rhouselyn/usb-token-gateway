@@ -302,6 +302,12 @@ func (hb *httpBridge) models(w http.ResponseWriter, r *http.Request) {
 	}
 	seen := map[string]bool{}
 	data := []any{}
+	// the smart alias is advertised first so clients can pin to it and never
+	// change config again; the real model behind it is chosen in the panel
+	if smart := hb.B.SmartModel(); smart != "" {
+		seen[vault.SmartAlias] = true
+		data = append(data, map[string]any{"id": vault.SmartAlias, "object": "model", "owned_by": "smart"})
+	}
 	for _, ch := range hb.B.Vault().Data.Channels {
 		if !ch.Enabled {
 			continue
@@ -334,7 +340,28 @@ func (hb *httpBridge) chat(w http.ResponseWriter, r *http.Request) {
 // chatCore carries the whole request pipeline; outFmt selects the downstream
 // wire protocol: "openai" (native) or "anthropic" (/v1/messages inbound).
 func (hb *httpBridge) chatCore(w http.ResponseWriter, r *http.Request, body map[string]any, outFmt string) {
-	model := strV(body["model"])
+	clientModel := strV(body["model"])
+	model := clientModel // what the client asked for (audit / error text)
+	routeModel := model  // what we match channels against
+	// "smart" is resolved here, on the gateway side: clients keep sending the
+	// same name while the panel decides which real model (and thus which
+	// channel / route) serves it.
+	smart := vault.IsSmartAlias(model)
+	upBody := body
+	if smart {
+		real := hb.B.SmartModel()
+		if real == "" {
+			hb.record(clientModel, "", 503, 0, 0, 0, "smart model not configured")
+			writeJSON(w, 503, outErr(outFmt, "smart model not configured; pick one in the panel (/admin)", "503", 503))
+			return
+		}
+		routeModel = real
+		upBody = make(map[string]any, len(body)+1)
+		for k, v := range body {
+			upBody[k] = v
+		}
+		upBody["model"] = real
+	}
 	stream := boolV(body["stream"])
 	pol := hb.B.Policy()
 	sch := hb.B.Sched()
@@ -351,18 +378,18 @@ func (hb *httpBridge) chatCore(w http.ResponseWriter, r *http.Request, body map[
 	}
 	anyMatches := false
 	for _, ch := range all {
-		if ch.Enabled && matchesModel(ch.Models, model) {
+		if ch.Enabled && matchesModel(ch.Models, routeModel) {
 			anyMatches = true
 			break
 		}
 	}
-	if model != "" && !anyMatches && model != "*" {
+	if routeModel != "" && !anyMatches && routeModel != "*" {
 		hb.record(model, "", 503, 0, 0, 0, "no channel serves model")
-		writeJSON(w, 503, outErr(outFmt, fmt.Sprintf("no channel serves model %q", model), "503", 503))
+		writeJSON(w, 503, outErr(outFmt, fmt.Sprintf("no channel serves model %q", routeModel), "503", 503))
 		return
 	}
 
-	candidates := candidatesFor(sch, model)
+	candidates := candidatesFor(sch, routeModel)
 	if budget := pol.RetryBudget; budget >= 0 && len(candidates) > budget+1 {
 		candidates = candidates[:budget+1]
 	}
@@ -371,7 +398,7 @@ func (hb *httpBridge) chatCore(w http.ResponseWriter, r *http.Request, body map[
 	var lastErr string
 	for attempt, ch := range candidates {
 		attempt++
-		reqOut, xerr := xfmt.Build(ch, body)
+		reqOut, xerr := xfmt.Build(ch, upBody)
 		if xerr != nil {
 			sch.Report(ch.ID, false, 0, 0, 0)
 			hb.record(model, ch.ID, 0, 0, 0, 0, xerr.Error())
@@ -413,6 +440,9 @@ func (hb *httpBridge) chatCore(w http.ResponseWriter, r *http.Request, body map[
 			return
 		}
 		if stream {
+			if smart {
+				w.Header().Set("X-BRG-Model", routeModel)
+			}
 			hb.sse(w, ch, body, resp, attempt, firstMS, pol.TimeoutStreamIdle, outFmt)
 			return
 		}
@@ -456,6 +486,10 @@ func (hb *httpBridge) chatCore(w http.ResponseWriter, r *http.Request, body map[
 		w.Header().Set("X-BRG-Channel", ch.ID)
 		w.Header().Set("X-BRG-Attempt", fmt.Sprintf("%d", attempt))
 		w.Header().Set("X-BRG-Latency-First", fmt.Sprintf("%.0f", firstMS))
+		if smart {
+			// reveal which real model served the alias (clients keep "smart")
+			w.Header().Set("X-BRG-Model", routeModel)
+		}
 		w.WriteHeader(200)
 		w.Write(payload)
 		return
@@ -652,6 +686,21 @@ func (hb *httpBridge) embeddings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	model := strV(body["model"])
+	upBody := body
+	if vault.IsSmartAlias(model) {
+		real := hb.B.SmartModel()
+		if real == "" {
+			writeJSON(w, 503, xfmt.OpenAIError("smart model not configured; pick one in the panel (/admin)", "503", 503))
+			return
+		}
+		upBody = make(map[string]any, len(body)+1)
+		for k, v := range body {
+			upBody[k] = v
+		}
+		upBody["model"] = real
+		w.Header().Set("X-BRG-Model", real)
+		model = real
+	}
 	sch := hb.B.Sched()
 	if sch == nil {
 		writeJSON(w, 503, xfmt.OpenAIError("bridge is locked", "locked", 503))
@@ -673,7 +722,7 @@ func (hb *httpBridge) embeddings(w http.ResponseWriter, r *http.Request) {
 	target := base + "/embeddings"
 	t0 := time.Now()
 	client := newUpstreamClient(hb.B.Policy().TimeoutFirstByteS)
-	req0, _ := http.NewRequest("POST", target, strings.NewReader(jsonStr(body)))
+	req0, _ := http.NewRequest("POST", target, strings.NewReader(jsonStr(upBody)))
 	req0.Header.Set("Content-Type", "application/json")
 	if ch.AuthHeader == "bearer" {
 		req0.Header.Set("Authorization", "Bearer "+ch.APIKey)

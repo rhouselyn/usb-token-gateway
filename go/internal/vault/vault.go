@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/argon2"
@@ -116,6 +117,16 @@ type Payload struct {
 	DownstreamKeys []*DownstreamKey `json:"downstream_keys"`
 	AdminToken     string           `json:"admin_token"`
 	CodexModel     string           `json:"codex_model,omitempty"` // model name written to Codex config.toml
+	SmartModel     string           `json:"smart_model,omitempty"` // real model the "smart" alias resolves to
+}
+
+// SmartAlias is the sentinel model name clients can pin to.  Choosing the real
+// model behind it happens in the panel, so downstream configs never change.
+const SmartAlias = "smart"
+
+// IsSmartAlias reports whether a requested model name is the smart sentinel.
+func IsSmartAlias(m string) bool {
+	return strings.EqualFold(strings.TrimSpace(m), SmartAlias)
 }
 
 func DefaultPolicy() Policy {

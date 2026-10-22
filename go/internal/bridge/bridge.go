@@ -173,6 +173,16 @@ func (b *Bridge) Sched() *sched.Scheduler {
 
 func (b *Bridge) Audit() *audit.Audit { return b.auditDB }
 
+// SmartModel is the real model the "smart" alias resolves to ("" = unset).
+func (b *Bridge) SmartModel() string {
+	b.mu.RLock()
+	defer b.mu.RUnlock()
+	if b.vault == nil {
+		return ""
+	}
+	return strings.TrimSpace(b.vault.Data.SmartModel)
+}
+
 func (b *Bridge) Policy() vault.Policy {
 	b.mu.RLock()
 	defer b.mu.RUnlock()

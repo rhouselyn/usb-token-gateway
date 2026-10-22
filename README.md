@@ -40,7 +40,7 @@
 - **Drop-in OpenAI endpoint** — `/v1/chat/completions`、`/v1/models`、`/v1/embeddings`；任何 OpenAI SDK / 客户端只要改 `base_url`
 - **Native Anthropic endpoint** — `/v1/messages`（含流式 `message_start → content_block_delta → message_stop`），Claude 官方 SDK 直连
 - **OpenAI Responses endpoint** — `/v1/responses`（含 SSE 事件流），**Codex CLI 原生直连**
-- **内置 Codex 一键启动** — `usb-bridge.exe --codex`（或托盘「启动 Codex」/「启动 Codex.bat」）：未登录先弹登录页、解锁瞬间自动拉起 Codex；面板勾选「Codex」Key（单选）与模型名后实时写进 U 盘 `bridge\codex\{auth.json,config.toml}`，`CODEX_HOME` 指向 U 盘、对话历史不留主机
+- **内置 Codex 一键启动** — `usb-bridge.exe --codex`（或托盘「启动 Codex」/「启动 Codex.bat」）：未登录先弹登录页、解锁瞬间自动拉起 Codex；面板勾选「Codex」Key（单选）后实时写进 U 盘 `bridge\codex\{auth.json,config.toml}`，模型名默认 `smart`（换真实模型只改面板，Codex 配置不用动），`CODEX_HOME` 指向 U 盘、对话历史不留主机
 - **Multi-channel routing** — `failover` / `round_robin` / `weighted` / `least_errors`，5 分钟健康窗 + 熔断 + 429 冷却 + 重试预算
 - **Protocol translation** — OpenAI ⇄ Anthropic 双向转换（请求体、响应体、SSE 事件流）
 - **Encrypted keys at rest** — Argon2id + AES-GCM，`config.vault` 全程密文，原子落盘
@@ -113,6 +113,10 @@ Linux/macOS 网关本体也能跑（托盘/进程接管等 Windows 专属能力�
 | 本机已记住但有渠道不通 | 只弹气泡提醒，不打扰；要排查 → 右键托盘「打开控制面板」 |
 | 换到新电脑 | 弹一次面板要主密码，输一次即记住这台机器 |
 | 重复双击 | 自动接管：旧实例退出、新实例接力（配置落盘是原子写，强杀安全） |
+| **U 盘被拔掉** | 看门狗每秒核对所在卷的序列号 + 盘符，连续约 5 秒消失 → 气泡提示并**自动退出**（插回后重新双击即可）；快速重插不会误杀 |
+
+> 为什么是「自动退出」而不是继续跑：Windows 会锁住正在运行的 exe，「安全弹出」通常失败，用户往往直接拔盘。
+> 此时进程还能靠内存里已解密的配置继续转发，但任何落盘（用量、配置）都会失败，留在后台没有意义。
 
 托盘菜单：打开控制面板 / 重新测活渠道 / 锁定 / 退出。
 
@@ -139,6 +143,26 @@ curl http://127.0.0.1:8989/v1/chat/completions \
 手机连同一 WiFi 用 `http://<电脑IP>:8989/v1`；跨网络建议 [Tailscale](https://tailscale.com)。
 默认只听 `127.0.0.1`——这是刻意的安全默认。
 
+### 智能模型（固定别名 smart，后台换真实模型）
+
+客户端永远只写 `"model": "smart"`，真实模型在面板「快速接入 → 可用模型」里点一下就能换，**前端配置一次都不用改**：
+
+```bash
+curl http://127.0.0.1:8989/v1/chat/completions \
+  -H "Authorization: Bearer sk-usb-xxxxxxxx" -H "Content-Type: application/json" \
+  -d '{"model":"smart","messages":[{"role":"user","content":"hi"}]}'
+```
+
+- 面板里随时把 `smart` 指向别的模型（例如 `gpt-4o-mini` ↔ `claude-3-5-sonnet`），改完立即生效
+- `smart` 解析后走正常的渠道路由，所以换模型 = 顺带换了渠道 / 策略 / 故障转移链路
+- 别名大小写不敏感（`smart` / `SMART`）；未配置真实模型时 `smart` 返回 503 并提示去面板选
+- 配置了才会出现在 `/v1/models` 与面板「可用模型」里；响应头 `X-BRG-Model` 会回显真正服务的模型
+- 面板「快速接入」里的模型区就是给客户端抄配置用的：
+  - 第一枚 `smart` 徽章显示当前映射的真实模型，右侧复制图标复制的就是 `smart`
+  - 其它模型名点一下 = 把 `smart` 指向它（不用进设置区），点名称右侧复制图标 = 只复制这个模型名
+  - 渠道通配符（`*`、`gpt-*`）不是真实模型，只能复制，不能设为 `smart` 目标
+  - 打开面板时按各渠道已接入的 Key 自动拉取上游 `/models`（合并进可复制区）；拉取失败或渠道不支持就静默跳过，绝不弹错
+
 ## 安全模型
 
 - `config.vault` **永远密文落盘**：新建用 Argon2id，兼容读取原型时代的 scrypt 库
@@ -159,6 +183,7 @@ curl http://127.0.0.1:8989/v1/chat/completions \
 build.ps1 / build.sh   一键构建（自动定位 go，无需任何个人路径）
 go/                    正式版（Go，单文件 exe，无第三方运行时依赖）
   main.go              入口：托盘 / 启动探针 / 记住解锁 / 实例接管
+  usbguard*.go         U 盘拔出看门狗（卷序列号 + 盘符校验，丢了就自动退出）
   instance_windows.go  重复双击接管、端口占用者识别（同族网关自动顶替）
   balloon_windows.go   托盘气泡通知（复用品牌图标）
   icon.go / icon_windows.go  运行时渲染品牌图标（与网页 favicon 同几何与渐变）
@@ -169,7 +194,7 @@ go/                    正式版（Go，单文件 exe，无第三方运行时依
   internal/sched/      轮换策略 + 熔断 + 冷却
   internal/probe/      启动探针、internal/remember/ DPAPI 记住本机
 python/                早期 Python 原型（用于跨语言 vault 互通验证，作为参考实现保留）
-tests/                 mock 上游 + 端到端测试（Go 78 项 / 原型 31 项）
+tests/                 mock 上游 + 端到端测试（Go 103 项 / 原型 31 项）
 usb/                   本机 U 盘交付目录（**整体不入库**，见 .gitignore）
                        = build.ps1 产出的 usb-bridge.exe + 使用说明.txt + 运行时数据 bridge/
 ```
@@ -179,7 +204,7 @@ usb/                   本机 U 盘交付目录（**整体不入库**，见 .git
 ```sh
 go -C go vet ./...                 # 静态检查
 go -C go test ./...                # 单元测试（图标编码 / Windows HICON 加载）
-python tests/e2e_go.py             # Go 端到端 78 项（含跨语言解锁、记住本机、接管）
+python tests/e2e_go.py             # Go 端到端 103 项（含跨语言解锁、记住本机、接管）
 python tests/e2e_test.py           # Python 原型回归 31 项
 python tests/repro_sse.py          # SSE 转换最小复现
 ```
